@@ -1,0 +1,46 @@
+cabal-version:      3.0
+name:               samsort
+version:            0.1.0.0
+synopsis:           A stable adaptive mergesort implementation
+description:        A stable adaptive mergesort implementation.
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Soumik Sarkar
+maintainer:         soumiksarkar.3120@gmail.com
+copyright:          (c) 2024 Soumik Sarkar
+category:           Data
+build-type:         Simple
+
+extra-doc-files:
+    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+
+    exposed-modules:
+        Data.SamSort
+
+    build-depends:
+        base >= 4.14 && < 5
+
+    hs-source-dirs:   src
+    default-language: Haskell2010
+
+test-suite samsort-test
+    import:           warnings
+
+    main-is:          Main.hs
+    build-depends:
+        base
+      , samsort
+      , primitive
+      , QuickCheck
+      , tasty
+      , tasty-quickcheck
+
+    default-language: Haskell2010
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
