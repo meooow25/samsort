@@ -113,25 +113,28 @@ sortByST cmp ma off len = do
         | otherwise = getRun i2 >>= popPush top0 i1 i2
 
       -- Maintain stack invariants
-      popPush !top !k2 !k3 !k4
-        | top < 0 || not (badYZ k2 k3 k4) = do
-            writeI stk (top+1) k2
-            mergeRuns (top+1) k3 k4
+      popPush !top !i2 !i3 !i4
+        | not (badYZ i2 i3 i4) = do
+            writeI stk (top+1) i2
+            mergeRuns (top+1) i3 i4
+        | top < 0 = do
+            merge i2 i3 i4
+            mergeRuns top i2 i4
         | otherwise = do
-            k1 <- readI stk top
-            if mergeL k1 k2 k3 k4
+            i1 <- readI stk top
+            if mergeL i1 i2 i3 i4
             then do
-              merge k1 k2 k3
-              popPush (top-1) k1 k3 k4
+              merge i1 i2 i3
+              popPush (top-1) i1 i3 i4
             else do
-              merge k2 k3 k4
-              popPush (top-1) k1 k2 k4
+              merge i2 i3 i4
+              popPush (top-1) i1 i2 i4
 
       finish !top !_ | top < 0 = pure ()
-      finish top k2 = do
-        k1 <- readI stk top
-        merge k1 k2 end
-        finish (top-1) k1
+      finish top i2 = do
+        i1 <- readI stk top
+        merge i1 i2 end
+        finish (top-1) i1
 
   getRun off >>= mergeRuns (-1) off
 
