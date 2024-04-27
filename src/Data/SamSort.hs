@@ -48,6 +48,10 @@ import GHC.Exts
 -- * @0 <= length@ .
 -- * @offset + length <= array size@ .
 --
+-- This function will inline, to get the best performance out of statically
+-- known comparison functions. To avoid code duplication, create a wrapping
+-- definition and reuse it.
+--
 sortBy#
   :: (a -> a -> Ordering)  -- ^ comparison
   -> MutableArray# s a
