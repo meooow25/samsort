@@ -112,10 +112,10 @@ sortByST cmp ma off len = do
           copyA ma i2 swp 0 (i3-i2)
           loop (i2-1) (i3-i2-1) (i3-1)
 
-      -- [i1,i2) is the last run. Runs before it are on the stack.
-      mergeRuns !top0 !i1 !i2
-        | i2 >= end = finish top0 i1
-        | otherwise = getRun i2 >>= popPush top0 i1 i2
+      -- [i,j) is the last run. Runs before it are on the stack.
+      mergeRuns !top !i j
+        | j >= end = finish top i
+        | otherwise = getRun j >>= popPush top i j
 
       -- Maintain stack invariants
       popPush !top !i2 !i3 !i4
@@ -135,11 +135,11 @@ sortByST cmp ma off len = do
               merge i2 i3 i4
               popPush (top-1) i1 i2 i4
 
-      finish !top !_ | top < 0 = pure ()
-      finish top i2 = do
-        i1 <- readI stk top
-        merge i1 i2 end
-        finish (top-1) i1
+      finish top !_ | top < 0 = pure ()
+      finish top j = do
+        i <- readI stk top
+        merge i j end
+        finish (top-1) i
 
   getRun off >>= mergeRuns (-1) off
 
