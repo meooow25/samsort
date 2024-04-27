@@ -55,9 +55,10 @@ sortBy#
   -> Int#                  -- ^ length
   -> State# s
   -> State# s
-sortBy# cmp ma# off# len# s =
-  case sortByST cmp (MA ma#) (I# off#) (I# len#) of
-    ST f -> case f s of (# s1, _ #) -> s1
+sortBy# cmp =  -- Inline with 1 arg
+  \ma# off# len# s ->
+    case sortByST cmp (MA ma#) (I# off#) (I# len#) of
+      ST f -> case f s of (# s1, _ #) -> s1
 {-# INLINE sortBy# #-}
 
 sortByST
