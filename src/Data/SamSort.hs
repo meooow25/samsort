@@ -198,6 +198,12 @@ sortByST cmp ma off len = do
       insLoop i j k'
 {-# INLINE sortByST #-}
 
+-- Note on integer overflows:
+-- We (reasonably) assume that end=off+len fits in an Int.
+-- If that holds, this implementation /should/ work without encountering any
+-- bugs due to overflow. But it is unclear how that can be tested without too
+-- much trouble.
+
 minRunLen :: Int
 minRunLen = 8
 
