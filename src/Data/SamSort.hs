@@ -236,9 +236,8 @@ lg i = finiteBitSize i - 1 - countLeadingZeros i
 errorElement :: a
 errorElement = error "errorElement"
 
--- The boxed wrappers MA, MIA, and functions operating on then are for the
--- convenience of working in ST. The alternative is passing around state tokens.
--- All of it should get optimized away.
+-- The boxed wrappers MA, MIA, and functions operating on them are for the
+-- convenience of working in ST. All of it should get optimized away.
 
 data MA s a = MA (MutableArray# s a)
 
