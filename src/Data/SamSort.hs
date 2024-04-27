@@ -10,7 +10,7 @@
 --
 -- The merging strategy used is "2-merge" as described by
 --
--- * Sam Buss, Alexander Korp,
+-- * Sam Buss, Alexander Knop,
 --   /\"Strategies for Stable Merge Sorting\"/,
 --   2018,
 --   https://arxiv.org/abs/1801.04641
