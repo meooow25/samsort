@@ -73,7 +73,7 @@ sortByST
   -> ST s ()
 sortByST _ !_ !_ len | len < 2 = pure ()
 sortByST cmp ma off len = do
-  !swp <- newA halfLen errorElement
+  !swp <- newA (len `shiftR` 1) errorElement
   !stk <- newI (lg len)
 
   let -- Merge [i1,i2) and [i2,i3)
@@ -148,7 +148,6 @@ sortByST cmp ma off len = do
     {-# INLINE gt #-}
 
     !end = off + len
-    !halfLen = len `shiftR` 1
 
     runAsc i | i >= end = pure i
     runAsc i = do
