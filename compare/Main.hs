@@ -28,8 +28,7 @@ bgroupN n = bgroup (show n) $
     [ bgroupMA "Same" (sameMA n)
     ]
   else
-    [ bgroupMA "Same" (sameMA n)
-    , bgroupMA "Asc" (ascMA n)
+    [ bgroupMA "Asc" (ascMA n)
     , bgroupMA "Desc" (descMA n)
     , bgroupMA "UpDownAsc" (upDownAscMA n)
     , bgroupMA "UpDownDesc" (upDownDescMA n)
