@@ -75,44 +75,105 @@ sortByST
   -> ST s ()
 sortByST _ !_ !_ len | len < 2 = pure ()
 sortByST cmp ma off len = do
+  -- See Note [Algorithm overview]
+
   !swp <- newA (len `shiftR` 1) errorElement
   !stk <- newI (lg len)
 
   let -- Merge [i1,i2) and [i2,i3)
       -- Precondition: i1 < i2 < i3
       merge !i1 !i2 !i3
-        | len1 <- i2-i1, len1 <= i3-i2 = do
-          let loop !i !j !k = do
-                x <- readA swp i
+        | i2-i1 <= i3-i2 = mergeCopyLeft1 i1 i2 i3
+        | otherwise = mergeCopyRight1 i1 i2 i3
+
+      mergeCopyLeft1 !i1 !i2 !i3 = do
+        x0 <- readA ma i1 -- See Note [First iteration]
+        y <- readA ma i2
+        if y `lt` x0
+        then mergeCopyLeft2 i1 i2 i3
+        else do
+          let skip i | i >= i2 = pure ()
+              skip i = do
+                x <- readA ma i
+                if y `lt` x
+                then mergeCopyLeft2 i i2 i3
+                else skip (i+1)
+          skip (i1+1)
+
+      mergeCopyLeft2 !i1 !i2 !i3 = do
+        copyA ma i1 swp 0 (i2-i1)
+        readA ma i2 >>= writeA ma i1
+        if i2+1 < i3
+        then loop 0 (i2+1) (i1+1)
+        else copyA swp 0 ma (i1+1) len1
+        where
+          !len1 = i2-i1
+          loop !h !j !k = do
+            x <- readA swp h
+            y0 <- readA ma j -- See Note [First iteration]
+            let nxt !j1 !k1 = do
+                  writeA ma k1 x
+                  when (h+1 < len1) $
+                    loop (h+1) j1 (k1+1)
+            if y0 `lt` x
+            then do
+              let loop2 j1 !k1 | j1 >= i3 = copyA swp h ma k1 (len1-h)
+                  loop2 j1 k1 = do
+                    y <- readA ma j1
+                    if y `lt` x
+                    then do
+                      writeA ma k1 y
+                      loop2 (j1+1) (k1+1)
+                    else
+                      nxt j1 k1
+              writeA ma k y0
+              loop2 (j+1) (k+1)
+            else
+              nxt j k
+
+      mergeCopyRight1 !i1 !i2 !i3 = do
+        x <- readA ma (i2-1)
+        y0 <- readA ma (i3-1) -- See Note [First iteration]
+        if y0 `lt` x
+        then mergeCopyRight2 i1 i2 i3
+        else do
+          let skip j | j < i2 = pure ()
+              skip j = do
                 y <- readA ma j
                 if y `lt` x
-                then do
-                  writeA ma k y
-                  if j+1 < i3
-                  then loop i (j+1) (k+1)
-                  else copyA swp i ma (k+1) (len1-i)
-                else do
-                  writeA ma k x
-                  when (i+1 < len1) $
-                    loop (i+1) j (k+1)
-          copyA ma i1 swp 0 (i2-i1)
-          loop 0 i2 i1
-        | otherwise = do
-          let loop !i !j !k = do
-                x <- readA ma i
-                y <- readA swp j
-                if y `lt` x
-                then do
-                  writeA ma k x
-                  if i > i1
-                  then loop (i-1) j (k-1)
-                  else copyA swp 0 ma i1 (j+1)
-                else do
-                  writeA ma k y
+                then mergeCopyRight2 i1 i2 (j+1)
+                else skip (j-1)
+          skip (i3-2)
+
+      mergeCopyRight2 !i1 !i2 !i3 = do
+        copyA ma i2 swp 0 (i3-i2)
+        readA ma (i2-1) >>= writeA ma (i3-1)
+        if i2-2 >= i1
+        then loop (i2-2) (i3-i2-1) (i3-2)
+        else copyA swp 0 ma i1 (i3-i2)
+        where
+          loop !h !j !k = do
+            x0 <- readA ma h -- See Note [First iteration]
+            y <- readA swp j
+            let nxt !h1 !k1 = do
+                  writeA ma k1 y
                   when (j > 0) $
-                    loop i (j-1) (k-1)
-          copyA ma i2 swp 0 (i3-i2)
-          loop (i2-1) (i3-i2-1) (i3-1)
+                    loop h1 (j-1) (k1-1)
+            if y `lt` x0
+            then do
+              let loop2 h1 !_ | h1 < i1 = copyA swp 0 ma i1 (j+1)
+                  loop2 h1 k1 = do
+                    x <- readA ma h1
+                    if y `lt` x
+                    then do
+                      writeA ma k1 x
+                      loop2 (h1-1) (k1-1)
+                    else
+                      nxt h1 k1
+              writeA ma k x0
+              loop2 (h-1) (k-1)
+            else
+              nxt h k
 
       -- [i,j) is the last run. Runs before it are on the stack.
       mergeRuns !top !i j
@@ -129,7 +190,7 @@ sortByST cmp ma off len = do
             mergeRuns top i2 i4
         | otherwise = do
             i1 <- readI stk top
-            if mergeL i1 i2 i3 i4
+            if mergeWithLeft i1 i2 i3 i4
             then do
               merge i1 i2 i3
               popPush (top-1) i1 i3 i4
@@ -174,16 +235,16 @@ sortByST cmp ma off len = do
     -- Precondition: i1 < i2, i1 < i3
     insLoop !_ i2 i3 | i2 >= i3 = pure i2
     insLoop i1 i2 i3 = do
-      x <- readA ma (i2-1)
+      x0 <- readA ma (i2-1) -- See Note [First iteration]
       y <- readA ma i2
-      when (y `lt` x) $ do
+      when (y `lt` x0) $ do
         let ins j | j <= i1 = writeA ma j y
             ins j = do
-              x' <- readA ma (j-1)
-              if y `lt` x'
-              then writeA ma j x' *> ins (j-1)
+              x <- readA ma (j-1)
+              if y `lt` x
+              then writeA ma j x *> ins (j-1)
               else writeA ma j y
-        writeA ma i2 x *> ins (i2-1)
+        writeA ma i2 x0 *> ins (i2-1)
       insLoop i1 (i2+1) i3
 
     getRun i | i >= end || i+1 >= end = pure end
@@ -202,12 +263,6 @@ sortByST cmp ma off len = do
       insLoop i j k'
 {-# INLINE sortByST #-}
 
--- Note on integer overflows:
--- We (reasonably) assume that end=off+len fits in an Int.
--- If that holds, this implementation /should/ work without encountering any
--- bugs due to overflow. But it is unclear how that can be tested without too
--- much trouble.
-
 minRunLen :: Int
 minRunLen = 8
 
@@ -215,9 +270,9 @@ badYZ :: Int -> Int -> Int -> Bool
 badYZ i1 i2 i3 = (i2-i1) `shiftR` 1 < (i3-i2)
 {-# INLINE badYZ #-}
 
-mergeL :: Int -> Int -> Int -> Int -> Bool
-mergeL i1 i2 i3 i4 = (i2-i1) < (i4-i3)
-{-# INLINE mergeL #-}
+mergeWithLeft :: Int -> Int -> Int -> Int -> Bool
+mergeWithLeft i1 i2 i3 i4 = (i2-i1) < (i4-i3)
+{-# INLINE mergeWithLeft #-}
 
 reverseA
   :: MA s a
@@ -240,6 +295,8 @@ lg i = finiteBitSize i - 1 - countLeadingZeros i
 
 errorElement :: a
 errorElement = error "errorElement"
+
+--------------------
 
 -- The boxed wrappers MA, MIA, and functions operating on them are for the
 -- convenience of working in ST. All of it should get optimized away.
@@ -283,3 +340,32 @@ writeI :: MIA s -> Int -> Int -> ST s ()
 writeI (MIA ma#) (I# i#) (I# x#) = ST $ \s ->
   case writeIntArray# ma# i# x# s of s1 -> (# s1, () #)
 {-# INLINE writeI #-}
+
+--------------------
+
+-- Note [Algorithm overview]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~
+-- Find non-decreasing and decreasing runs. Decreasing runs are reversed in
+-- place. Maintain a stack of runs. As each run is found, add them to the stack
+-- and maintain stack invariants according to the 2-merge strategy. This
+-- involves merging adjacent runs. Merging two runs is done by copying the
+-- smaller run to a swap array, then merging into the main array. Elements of
+-- the smaller array that can stay in place are skipped and not copied. After
+-- all runs are found, runs on the stack are merged to get the final sorted
+-- array.
+
+-- Note [First iteration]
+-- ~~~~~~~~~~~~~~~~~~~~~~
+-- In certain places, the first iteration of a loop is pulled out of the loop
+-- when many elements need to be compared with one element. This is to make GHC
+-- aware that if the comparison is strict, the one element can be evaluated and
+-- perhaps unboxed for subsequent comparisons. This could also be achieved by
+-- being strict in the element, but we want to allow the comparison function
+-- to be potentially lazy.
+
+-- Note [Integer overflows]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~
+-- We (reasonably) assume that end=off+len fits in an Int.
+-- If that holds, this implementation /should/ work without encountering any
+-- bugs due to overflow. But it is unclear how that can be tested without too
+-- much trouble.
