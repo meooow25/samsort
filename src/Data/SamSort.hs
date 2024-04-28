@@ -42,15 +42,17 @@ import GHC.Exts
 -- | \(O(n \log n)\). Sort a slice of a @MutableArray#@ using a comparison
 -- function.
 --
+-- The comparison must form a total order, as required by the 'Ord' laws.
+--
 -- @offset@ and @length@ must be valid, i.e.
 --
 -- * @0 <= offset < array size@ .
 -- * @0 <= length@ .
 -- * @offset + length <= array size@ .
 --
--- This function will inline, to get the best performance out of statically
+-- This function will inline to get the best performance out of statically
 -- known comparison functions. To avoid code duplication, create a wrapping
--- definition and reuse it.
+-- definition and reuse it as necessary.
 --
 sortBy#
   :: (a -> a -> Ordering)  -- ^ comparison
@@ -83,7 +85,7 @@ sortByST cmp ma off len = do
           let loop !i !j !k = do
                 x <- readA swp i
                 y <- readA ma j
-                if x `gt` y
+                if y `lt` x
                 then do
                   writeA ma k y
                   if j+1 < i3
@@ -99,7 +101,7 @@ sortByST cmp ma off len = do
           let loop !i !j !k = do
                 x <- readA ma i
                 y <- readA swp j
-                if x `gt` y
+                if y `lt` x
                 then do
                   writeA ma k x
                   if i > i1
@@ -144,8 +146,11 @@ sortByST cmp ma off len = do
   getRun off >>= mergeRuns (-1) off
 
   where
-    gt x y = case cmp x y of GT -> True; _ -> False
-    {-# INLINE gt #-}
+    lt x y = case cmp x y of LT -> True; _ -> False
+    {-# INLINE lt #-}
+    -- Note: Use lt instead of gt. Why? Because `compare` for types like Int and
+    -- Word are defined in a way that needs one `<` op for LT but two (`<`,`==`)
+    -- for GT.
 
     !end = off + len
 
@@ -153,7 +158,7 @@ sortByST cmp ma off len = do
     runAsc i = do
       x <- readA ma (i-1)
       y <- readA ma i
-      if x `gt` y
+      if y `lt` x
       then pure i
       else runAsc (i+1)
 
@@ -161,7 +166,7 @@ sortByST cmp ma off len = do
     runDesc i = do
       x <- readA ma (i-1)
       y <- readA ma i
-      if x `gt` y
+      if y `lt` x
       then runDesc (i+1)
       else pure i
 
@@ -171,11 +176,11 @@ sortByST cmp ma off len = do
     insLoop i1 i2 i3 = do
       x <- readA ma (i2-1)
       y <- readA ma i2
-      when (x `gt` y) $ do
+      when (y `lt` x) $ do
         let ins j | j <= i1 = writeA ma j y
             ins j = do
               x' <- readA ma (j-1)
-              if x' `gt` y
+              if y `lt` x'
               then writeA ma j x' *> ins (j-1)
               else writeA ma j y
         writeA ma i2 x *> ins (i2-1)
@@ -185,7 +190,7 @@ sortByST cmp ma off len = do
     getRun i = do
       x <- readA ma i
       y <- readA ma (i+1)
-      !j <- if x `gt` y
+      !j <- if y `lt` x
         then do
           !j <- runDesc (i+2)
           j <$ reverseA ma i (j-1)
