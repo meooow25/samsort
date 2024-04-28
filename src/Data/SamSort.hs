@@ -10,7 +10,7 @@
 --
 -- The merging strategy used is "2-merge" as described by
 --
--- * Sam Buss, Alexander Korp,
+-- * Sam Buss, Alexander Knop,
 --   /\"Strategies for Stable Merge Sorting\"/,
 --   2018,
 --   https://arxiv.org/abs/1801.04641
@@ -48,6 +48,10 @@ import GHC.Exts
 -- * @0 <= length@ .
 -- * @offset + length <= array size@ .
 --
+-- This function will inline, to get the best performance out of statically
+-- known comparison functions. To avoid code duplication, create a wrapping
+-- definition and reuse it.
+--
 sortBy#
   :: (a -> a -> Ordering)  -- ^ comparison
   -> MutableArray# s a
@@ -55,9 +59,10 @@ sortBy#
   -> Int#                  -- ^ length
   -> State# s
   -> State# s
-sortBy# cmp ma# off# len# s =
-  case sortByST cmp (MA ma#) (I# off#) (I# len#) of
-    ST f -> case f s of (# s1, _ #) -> s1
+sortBy# cmp =  -- Inline with 1 arg
+  \ma# off# len# s ->
+    case sortByST cmp (MA ma#) (I# off#) (I# len#) of
+      ST f -> case f s of (# s1, _ #) -> s1
 {-# INLINE sortBy# #-}
 
 sortByST
@@ -68,7 +73,7 @@ sortByST
   -> ST s ()
 sortByST _ !_ !_ len | len < 2 = pure ()
 sortByST cmp ma off len = do
-  !swp <- newA halfLen errorElement
+  !swp <- newA (len `shiftR` 1) errorElement
   !stk <- newI (lg len)
 
   let -- Merge [i1,i2) and [i2,i3)
@@ -107,31 +112,34 @@ sortByST cmp ma off len = do
           copyA ma i2 swp 0 (i3-i2)
           loop (i2-1) (i3-i2-1) (i3-1)
 
-      -- [i1,i2) is the last run. Runs before it are on the stack.
-      mergeRuns !top0 !i1 !i2
-        | i2 >= end = finish top0 i1
-        | otherwise = getRun i2 >>= popPush top0 i1 i2
+      -- [i,j) is the last run. Runs before it are on the stack.
+      mergeRuns !top !i j
+        | j >= end = finish top i
+        | otherwise = getRun j >>= popPush top i j
 
       -- Maintain stack invariants
-      popPush !top !k2 !k3 !k4
-        | top < 0 || not (badYZ k2 k3 k4) = do
-            writeI stk (top+1) k2
-            mergeRuns (top+1) k3 k4
+      popPush !top !i2 !i3 !i4
+        | not (badYZ i2 i3 i4) = do
+            writeI stk (top+1) i2
+            mergeRuns (top+1) i3 i4
+        | top < 0 = do
+            merge i2 i3 i4
+            mergeRuns top i2 i4
         | otherwise = do
-            k1 <- readI stk top
-            if mergeL k1 k2 k3 k4
+            i1 <- readI stk top
+            if mergeL i1 i2 i3 i4
             then do
-              merge k1 k2 k3
-              popPush (top-1) k1 k3 k4
+              merge i1 i2 i3
+              popPush (top-1) i1 i3 i4
             else do
-              merge k2 k3 k4
-              popPush (top-1) k1 k2 k4
+              merge i2 i3 i4
+              popPush (top-1) i1 i2 i4
 
-      finish !top !_ | top < 0 = pure ()
-      finish top k2 = do
-        k1 <- readI stk top
-        merge k1 k2 end
-        finish (top-1) k1
+      finish top !_ | top < 0 = pure ()
+      finish top j = do
+        i <- readI stk top
+        merge i j end
+        finish (top-1) i
 
   getRun off >>= mergeRuns (-1) off
 
@@ -140,7 +148,6 @@ sortByST cmp ma off len = do
     {-# INLINE gt #-}
 
     !end = off + len
-    !halfLen = len `shiftR` 1
 
     runAsc i | i >= end = pure i
     runAsc i = do
@@ -190,6 +197,12 @@ sortByST cmp ma off len = do
       insLoop i j k'
 {-# INLINE sortByST #-}
 
+-- Note on integer overflows:
+-- We (reasonably) assume that end=off+len fits in an Int.
+-- If that holds, this implementation /should/ work without encountering any
+-- bugs due to overflow. But it is unclear how that can be tested without too
+-- much trouble.
+
 minRunLen :: Int
 minRunLen = 8
 
@@ -223,9 +236,8 @@ lg i = finiteBitSize i - 1 - countLeadingZeros i
 errorElement :: a
 errorElement = error "errorElement"
 
--- The boxed wrappers MA, MIA, and functions operating on then are for the
--- convenience of working in ST. The alternative is passing around state tokens.
--- All of it should get optimized away.
+-- The boxed wrappers MA, MIA, and functions operating on them are for the
+-- convenience of working in ST. All of it should get optimized away.
 
 data MA s a = MA (MutableArray# s a)
 
