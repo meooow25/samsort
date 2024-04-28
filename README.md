@@ -34,7 +34,8 @@ to your project.
   result, the sort is $O(n)$ for already sorted inputs.
 * The performance is comparable to and in many cases better than the comparison
   sorts from the [vector-algorithms](https://hackage.haskell.org/package/vector-algorithms)
-  library. See [the benchmarks](compare) for details.
+  library. See [the benchmarks](https://github.com/meooow25/samsort/tree/master/compare)
+  for details.
 
 ## FAQ
 
