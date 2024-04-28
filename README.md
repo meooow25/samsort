@@ -1,5 +1,7 @@
 # samsort
 
+[![Haskell-CI](https://github.com/meooow25/samsort/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/meooow25/samsort/actions/workflows/haskell-ci.yml)
+
 A stable adapative mergesort implementation
 
 ## Features
