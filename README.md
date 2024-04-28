@@ -17,7 +17,7 @@ array, such as ones from
 [`vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Mutable.html#t:MVector),
 [`array`](https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-Arr.html#t:STArray),
 or elsewhere. You can find an example with `primitive`
-[here](https://github.com/meooow25/samsort/blob/master/compare/Main.hs#L61-L64).
+[here](https://github.com/meooow25/samsort/blob/82b7b9c84919a6d44484df9375a63d26c0520716/compare/Main.hs#L61-L64).
 
 If you need to use this library in an environment where you cannot depend on
 other packages, you may simply copy the lone source file
