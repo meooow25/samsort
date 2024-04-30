@@ -17,6 +17,7 @@
 --
 module Data.SamSort
   ( sortBy#
+  , sortIntsBy#
   ) where
 
 import Control.Monad (when)
@@ -31,6 +32,7 @@ import GHC.Exts
   , State#
   , (*#)
   , copyMutableArray#
+  , copyMutableByteArray#
   , newArray#
   , newByteArray#
   , readArray#
@@ -100,6 +102,7 @@ sortByST cmp ma off len = do
                 else skip (i+1)
           skip (i1+1)
 
+      -- Precondition: i1 < i2 < i3, (ma!i2) `lt` (ma!i1)
       mergeCopyLeft2 !i1 !i2 !i3 = do
         copyA ma i1 swp 0 (i2-i1)
         readA ma i2 >>= writeA ma i1
@@ -145,6 +148,7 @@ sortByST cmp ma off len = do
                 else skip (j-1)
           skip (i3-2)
 
+      -- Precondition: i1 < i2 < i3, (ma!(i3-1)) `lt` (ma!(i2-1))
       mergeCopyRight2 !i1 !i2 !i3 = do
         copyA ma i2 swp 0 (i3-i2)
         readA ma (i2-1) >>= writeA ma (i3-1)
@@ -175,36 +179,7 @@ sortByST cmp ma off len = do
             else
               nxt h k
 
-      -- [i,j) is the last run. Runs before it are on the stack.
-      mergeRuns !top !i j
-        | j >= end = finish top i
-        | otherwise = getRun j >>= popPush top i j
-
-      -- Maintain stack invariants
-      popPush !top !i2 !i3 !i4
-        | not (badYZ i2 i3 i4) = do
-            writeI stk (top+1) i2
-            mergeRuns (top+1) i3 i4
-        | top < 0 = do
-            merge i2 i3 i4
-            mergeRuns top i2 i4
-        | otherwise = do
-            i1 <- readI stk top
-            if mergeWithLeft i1 i2 i3 i4
-            then do
-              merge i1 i2 i3
-              popPush (top-1) i1 i3 i4
-            else do
-              merge i2 i3 i4
-              popPush (top-1) i1 i2 i4
-
-      finish top !_ | top < 0 = pure ()
-      finish top j = do
-        i <- readI stk top
-        merge i j end
-        finish (top-1) i
-
-  getRun off >>= mergeRuns (-1) off
+  mergeStrategy merge getRun stk off end
 
   where
     lt x y = case cmp x y of LT -> True; _ -> False
@@ -215,18 +190,154 @@ sortByST cmp ma off len = do
 
     !end = off + len
 
+    getRun = mkGetRun lt (readA ma) (writeA ma) (reverseA ma) end
+{-# INLINE sortByST #-}
+
+-- | \(O(n \log n)\). Sort a slice of a @MutableByteArray#@ interpreted as an
+-- array of @Int#@s using a comparison function.
+--
+-- The comparison must form a total order, as required by the 'Ord' laws.
+--
+-- @offset@ and @length@ must be valid, i.e.
+--
+-- * @0 <= offset < array size@ .
+-- * @0 <= length@ .
+-- * @offset + length <= array size@ .
+--
+-- This function will inline to get the best performance out of statically
+-- known comparison functions. To avoid code duplication, create a wrapping
+-- definition and reuse it as necessary.
+--
+sortIntsBy#
+  :: (Int# -> Int# -> Ordering)  -- ^ comparison
+  -> MutableByteArray# s
+  -> Int#                        -- ^ offset in @Int#@s
+  -> Int#                        -- ^ length in @Int#@s
+  -> State# s
+  -> State# s
+sortIntsBy# cmp =  -- Inline with 1 arg
+  \ma# off# len# s ->
+    case sortIntsByST cmp (MIA ma#) (I# off#) (I# len#) of
+      ST f -> case f s of (# s1, _ #) -> s1
+{-# INLINE sortIntsBy# #-}
+
+sortIntsByST
+  :: (Int# -> Int# -> Ordering)
+  -> MIA s
+  -> Int
+  -> Int
+  -> ST s ()
+sortIntsByST _ !_ !_ len | len < 2 = pure ()
+sortIntsByST cmp ma off len = do
+  -- See Note [Algorithm overview]
+
+  !swp <- newI (len `shiftR` 1)
+  !stk <- newI (lg len)
+
+  let -- Merge [i1,i2) and [i2,i3)
+      -- Precondition: i1 < i2 < i3
+      merge !i1 !i2 !i3
+        | i2-i1 <= i3-i2 = mergeCopyLeft1 i1 i2 i3
+        | otherwise = mergeCopyRight1 i1 i2 i3
+
+      mergeCopyLeft1 !i1 !i2 !i3 = readI ma i2 >>= skip i1
+        where
+          skip !i !y = do
+            x <- readI ma i
+            if y `lt` x
+            then mergeCopyLeft2 i i2 i3
+            else
+              when (i < i2) $
+                skip (i+1) y
+
+      -- Precondition: i1 < i2 < i3, (ma!i2) `lt` (ma!i1)
+      mergeCopyLeft2 !i1 !i2 !i3 = do
+        copyI ma i1 swp 0 (i2-i1)
+        readI ma i2 >>= writeI ma i1
+        if i2+1 < i3
+        then loop 0 (i2+1) (i1+1)
+        else copyI swp 0 ma (i1+1) len1
+        where
+          !len1 = i2-i1
+          loop !h !j !k = readI swp h >>= loop2 j k h
+          loop2 j1 !k1 !h !_ | j1 >= i3 = copyI swp h ma k1 (len1-h)
+          loop2 j1 k1 h x = do
+            y <- readI ma j1
+            if y `lt` x
+            then do
+              writeI ma k1 y
+              loop2 (j1+1) (k1+1) h x
+            else do
+              writeI ma k1 x
+              when (h+1 < len1) $
+                loop (h+1) j1 (k1+1)
+
+      mergeCopyRight1 !i1 !i2 !i3 = readI ma (i2-1) >>= skip (i3-1)
+        where
+          skip !j !x = do
+            y <- readI ma j
+            if y `lt` x
+            then mergeCopyRight2 i1 i2 (j+1)
+            else
+              when (j >= i2) $
+                skip (j-1) x
+
+      -- Precondition: i1 < i2 < i3, (ma!(i3-1)) `lt` (ma!(i2-1))
+      mergeCopyRight2 !i1 !i2 !i3 = do
+        copyI ma i2 swp 0 (i3-i2)
+        readI ma (i2-1) >>= writeI ma (i3-1)
+        if i2-2 >= i1
+        then loop (i2-2) (i3-i2-1) (i3-2)
+        else copyI swp 0 ma i1 (i3-i2)
+        where
+          loop !h !j !k = readI swp j >>= loop2 h k j
+          loop2 h1 !_ !j !_ | h1 < i1 = copyI swp 0 ma i1 (j+1)
+          loop2 h1 k1 j y = do
+            x <- readI ma h1
+            if y `lt` x
+            then do
+              writeI ma k1 x
+              loop2 (h1-1) (k1-1) j y
+            else do
+              writeI ma k1 y
+              when (j > 0) $
+                loop h1 (j-1) (k1-1)
+
+  mergeStrategy merge getRun stk off end
+
+  where
+    lt (I# x#) (I# y#) = case cmp x# y# of LT -> True; _ -> False
+    {-# INLINE lt #-}
+    -- Note: Use lt instead of gt. Why? Because `compare` for types like Int and
+    -- Word are defined in a way that needs one `<` op for LT but two (`<`,`==`)
+    -- for GT.
+
+    !end = off + len
+
+    getRun = mkGetRun lt (readI ma) (writeI ma) (reverseI ma) end
+{-# INLINE sortIntsByST #-}
+
+mkGetRun
+  :: (a -> a -> Bool)        -- comparison
+  -> (Int -> ST s a)         -- read
+  -> (Int -> a -> ST s ())   -- write
+  -> (Int -> Int -> ST s ()) -- reverse
+  -> Int                     -- end
+  -> (Int -> ST s Int)
+mkGetRun lt rd wt rev !end = getRun
+  where
     runAsc i | i >= end = pure i
     runAsc i = do
-      x <- readA ma (i-1)
-      y <- readA ma i
+      x <- rd (i-1)
+      y <- rd i
       if y `lt` x
       then pure i
       else runAsc (i+1)
 
     runDesc i | i >= end = pure i
     runDesc i = do
-      x <- readA ma (i-1)
-      y <- readA ma i
+      x <- rd (i-1)
+      y <- rd i
       if y `lt` x
       then runDesc (i+1)
       else pure i
@@ -235,36 +346,75 @@ sortByST cmp ma off len = do
     -- Precondition: i1 < i2, i1 < i3
     insLoop !_ i2 i3 | i2 >= i3 = pure i2
     insLoop i1 i2 i3 = do
-      x0 <- readA ma (i2-1) -- See Note [First iteration]
-      y <- readA ma i2
+      x0 <- rd (i2-1)
+      y <- rd i2
       when (y `lt` x0) $ do
-        let ins j | j <= i1 = writeA ma j y
+        let ins j | j <= i1 = wt j y
             ins j = do
-              x <- readA ma (j-1)
+              x <- rd (j-1)
               if y `lt` x
-              then writeA ma j x *> ins (j-1)
-              else writeA ma j y
-        writeA ma i2 x0 *> ins (i2-1)
+              then wt j x *> ins (j-1)
+              else wt j y
+        wt i2 x0 *> ins (i2-1)
       insLoop i1 (i2+1) i3
 
     getRun i | i >= end || i+1 >= end = pure end
     getRun i = do
-      x <- readA ma i
-      y <- readA ma (i+1)
+      x <- rd i
+      y <- rd (i+1)
       !j <- if y `lt` x
         then do
-          !j <- runDesc (i+2)
-          j <$ reverseA ma i (j-1)
+          j <- runDesc (i+2)
+          j <$ rev i (j-1)
         else runAsc (i+2)
       let k = i + minRunLen
           k' = if k <= 0 -- overflowed
                then end
                else min end k
       insLoop i j k'
-{-# INLINE sortByST #-}
+{-# INLINE mkGetRun #-}
 
 minRunLen :: Int
 minRunLen = 8
+
+mergeStrategy
+  :: (Int -> Int -> Int -> ST s ()) -- merge
+  -> (Int -> ST s Int)              -- get next run
+  -> MIA s                          -- stack
+  -> Int                            -- offset
+  -> Int                            -- end
+  -> ST s ()
+mergeStrategy merge getRun !stk !off !end = getRun off >>= mergeRuns (-1) off
+  where
+    -- [i,j) is the last run. Runs before it are on the stack.
+    mergeRuns !top !i j
+      | j >= end = finish top i
+      | otherwise = getRun j >>= popPush top i j
+
+    -- Maintain stack invariants
+    popPush !top !i2 !i3 !i4
+      | not (badYZ i2 i3 i4) = do
+          writeI stk (top+1) i2
+          mergeRuns (top+1) i3 i4
+      | top < 0 = do
+          merge i2 i3 i4
+          mergeRuns top i2 i4
+      | otherwise = do
+          i1 <- readI stk top
+          if mergeWithLeft i1 i2 i3 i4
+          then do
+            merge i1 i2 i3
+            popPush (top-1) i1 i3 i4
+          else do
+            merge i2 i3 i4
+            popPush (top-1) i1 i2 i4
+
+    finish top !_ | top < 0 = pure ()
+    finish top j = do
+      i <- readI stk top
+      merge i j end
+      finish (top-1) i
+{-# INLINE mergeStrategy #-}
 
 badYZ :: Int -> Int -> Int -> Bool
 badYZ i1 i2 i3 = (i2-i1) `shiftR` 1 < (i3-i2)
@@ -286,6 +436,20 @@ reverseA !ma = loop
       x <- readA ma i
       readA ma j >>= writeA ma i
       writeA ma j x
+      loop (i+1) (j-1)
+
+reverseI
+  :: MIA s
+  -> Int     -- ^ Start
+  -> Int     -- ^ End (inclusive)
+  -> ST s ()
+reverseI !ma = loop
+  where
+    loop i j | i >= j = pure ()
+    loop i j = do
+      x <- readI ma i
+      readI ma j >>= writeI ma i
+      writeI ma j x
       loop (i+1) (j-1)
 
 lg :: Int -> Int
@@ -326,9 +490,7 @@ data MIA s = MIA (MutableByteArray# s)
 
 newI :: Int -> ST s (MIA s)
 newI (I# n#) = ST $ \s ->
-  case newByteArray# (n# *# wsz#) s of (# s1, ma# #) -> (# s1, MIA ma# #)
-  where
-    !(I# wsz#) = finiteBitSize (0 :: Int) `shiftR` 3
+  case newByteArray# (n# *# intSize# (# #)) s of (# s1, ma# #) -> (# s1, MIA ma# #)
 {-# INLINE newI #-}
 
 readI :: MIA s -> Int -> ST s Int
@@ -340,6 +502,21 @@ writeI :: MIA s -> Int -> Int -> ST s ()
 writeI (MIA ma#) (I# i#) (I# x#) = ST $ \s ->
   case writeIntArray# ma# i# x# s of s1 -> (# s1, () #)
 {-# INLINE writeI #-}
+
+copyI :: MIA s -> Int -> MIA s -> Int -> Int -> ST s ()
+copyI (MIA src#) (I# srcOff#) (MIA dst#) (I# dstOff#) (I# len#) = ST $ \s ->
+  case copyMutableByteArray#
+         src#
+         (srcOff# *# intSize# (# #))
+         dst#
+         (dstOff# *# intSize# (# #))
+         (len# *# intSize# (# #))
+         s of
+    s1 -> (# s1, () #)
+{-# INLINE copyI #-}
+
+intSize# :: (# #) -> Int#
+intSize# _ = case finiteBitSize (0 :: Int) `shiftR` 3 of I# wsz# -> wsz#
 
 --------------------
 
