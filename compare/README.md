@@ -1,5 +1,7 @@
 ## Comparison with other sorts
 
+> `TODO: Update with latest data`
+
 Benchmarking done with GHC 9.6.3 -O and the [criterion](https://hackage.haskell.org/package/criterion)
 library. See `Main.hs` for details on the test cases. The output CSV file
 is at [`result/result.csv`](result/result.csv).
