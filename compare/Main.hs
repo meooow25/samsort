@@ -62,7 +62,7 @@ bgroupN f n = bgroup (show n) $
 
 bgroupIOA :: Ord a => String -> IO (IOArray a) -> Benchmark
 bgroupIOA name mkma = bgroup name
-  [ bench "samsort sortBy#" $
+  [ bench "samsort sortArrayBy#" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSort ma
   , bench "vector-algorithms Intro" $
     perRunEnv mkv $ \(WHNF mv) -> Intro.sort mv
@@ -93,7 +93,7 @@ bgroupPN n = bgroup (show n) $
 
 bgroupIOPA :: String -> IO (IOPrimArray Int) -> Benchmark
 bgroupIOPA name mkma = bgroup name
-  [ bench "samsort sortIntsBy#" $
+  [ bench "samsort sortIntArrayBy#" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSortInts ma
   , bench "vector-algorithms Intro" $
     perRunEnv mkv $ \(WHNF mv) -> Intro.sort mv
@@ -113,12 +113,12 @@ bgroupIOPA name mkma = bgroup name
 
 samSort :: (PrimMonad m, Ord a) => MutableArray (PrimState m) a -> m ()
 samSort (MutableArray ma#) =
-  primitive_ $ Sam.sortBy# compare ma# 0# (sizeofMutableArray# ma#)
+  primitive_ $ Sam.sortArrayBy# compare ma# 0# (sizeofMutableArray# ma#)
 
 samSortInts :: PrimMonad m => MutablePrimArray (PrimState m) Int -> m ()
 samSortInts ma@(MutablePrimArray ma#) = do
   I# sz# <- getSizeofMutablePrimArray ma
-  primitive_ $ Sam.sortIntsBy# (\x# y# -> compare (I# x#) (I# y#)) ma# 0# sz#
+  primitive_ $ Sam.sortIntArrayBy# (\x# y# -> compare (I# x#) (I# y#)) ma# 0# sz#
 
 ---------
 -- Data

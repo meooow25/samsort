@@ -16,8 +16,8 @@
 --   https://arxiv.org/abs/1801.04641
 --
 module Data.SamSort
-  ( sortBy#
-  , sortIntsBy#
+  ( sortArrayBy#
+  , sortIntArrayBy#
   ) where
 
 import Control.Monad (when)
@@ -56,27 +56,27 @@ import GHC.Exts
 -- known comparison functions. To avoid code duplication, create a wrapping
 -- definition and reuse it as necessary.
 --
-sortBy#
+sortArrayBy#
   :: (a -> a -> Ordering)  -- ^ comparison
   -> MutableArray# s a
   -> Int#                  -- ^ offset
   -> Int#                  -- ^ length
   -> State# s
   -> State# s
-sortBy# cmp =  -- Inline with 1 arg
+sortArrayBy# cmp =  -- Inline with 1 arg
   \ma# off# len# s ->
-    case sortByST cmp (MA ma#) (I# off#) (I# len#) of
+    case sortArrayByST cmp (MA ma#) (I# off#) (I# len#) of
       ST f -> case f s of (# s1, _ #) -> s1
-{-# INLINE sortBy# #-}
+{-# INLINE sortArrayBy# #-}
 
-sortByST
+sortArrayByST
   :: (a -> a -> Ordering)
   -> MA s a
   -> Int
   -> Int
   -> ST s ()
-sortByST _ !_ !_ len | len < 2 = pure ()
-sortByST cmp ma off len = do
+sortArrayByST _ !_ !_ len | len < 2 = pure ()
+sortArrayByST cmp ma off len = do
   -- See Note [Algorithm overview]
 
   !swp <- newA (len `shiftR` 1) errorElement
@@ -191,7 +191,7 @@ sortByST cmp ma off len = do
     !end = off + len
 
     getRun = mkGetRun lt (readA ma) (writeA ma) (reverseA ma) end
-{-# INLINE sortByST #-}
+{-# INLINE sortArrayByST #-}
 
 -- | \(O(n \log n)\). Sort a slice of a @MutableByteArray#@ interpreted as an
 -- array of @Int#@s using a comparison function.
@@ -208,27 +208,27 @@ sortByST cmp ma off len = do
 -- known comparison functions. To avoid code duplication, create a wrapping
 -- definition and reuse it as necessary.
 --
-sortIntsBy#
+sortIntArrayBy#
   :: (Int# -> Int# -> Ordering)  -- ^ comparison
   -> MutableByteArray# s
   -> Int#                        -- ^ offset in @Int#@s
   -> Int#                        -- ^ length in @Int#@s
   -> State# s
   -> State# s
-sortIntsBy# cmp =  -- Inline with 1 arg
+sortIntArrayBy# cmp =  -- Inline with 1 arg
   \ma# off# len# s ->
-    case sortIntsByST cmp (MIA ma#) (I# off#) (I# len#) of
+    case sortIntArrayByST cmp (MIA ma#) (I# off#) (I# len#) of
       ST f -> case f s of (# s1, _ #) -> s1
-{-# INLINE sortIntsBy# #-}
+{-# INLINE sortIntArrayBy# #-}
 
-sortIntsByST
+sortIntArrayByST
   :: (Int# -> Int# -> Ordering)
   -> MIA s
   -> Int
   -> Int
   -> ST s ()
-sortIntsByST _ !_ !_ len | len < 2 = pure ()
-sortIntsByST cmp ma off len = do
+sortIntArrayByST _ !_ !_ len | len < 2 = pure ()
+sortIntArrayByST cmp ma off len = do
   -- See Note [Algorithm overview]
 
   !swp <- newI (len `shiftR` 1)
@@ -315,7 +315,7 @@ sortIntsByST cmp ma off len = do
     !end = off + len
 
     getRun = mkGetRun lt (readI ma) (writeI ma) (reverseI ma) end
-{-# INLINE sortIntsByST #-}
+{-# INLINE sortIntArrayByST #-}
 
 mkGetRun
   :: (a -> a -> Bool)        -- comparison
