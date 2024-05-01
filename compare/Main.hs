@@ -19,27 +19,33 @@ import Criterion.Main (Benchmark, defaultMain, bench, bgroup, perRunEnv)
 import qualified Data.SamSort as Sam
 
 main :: IO ()
-main = defaultMain $ map bgroupN sizes
+main = defaultMain
+  [ bgroup "Int" $ map (bgroupN id) sizes
+  , bgroup "Maybe Int" $ map (bgroupN Just) sizes
+  ]
 
-bgroupN :: Int -> Benchmark
-bgroupN n = bgroup (show n) $
+sizes :: [Int]
+sizes = [0, 1, 10, 1000, 100000]
+
+bgroupN :: Ord a => (Int -> a) -> Int -> Benchmark
+bgroupN f n = bgroup (show n) $
   if n <= 1
   then
-    [ bgroupMA "Same" (sameMA n)
+    [ bgroupIOA "Same" (sameIOA f n)
     ]
   else
-    [ bgroupMA "Asc" (ascMA n)
-    , bgroupMA "Desc" (descMA n)
-    , bgroupMA "UpDownAsc" (upDownAscMA n)
-    , bgroupMA "UpDownDesc" (upDownDescMA n)
-    , bgroupMA "BigRand" (bigRandMA n)
-    , bgroupMA "SmallRand" (smallRandMA n)
-    , bgroupMA "AscThenRand" (ascThenRandMA n)
-    , bgroupMA "RandThenAsc" (randThenAscMA n)
+    [ bgroupIOA "Asc" (ascIOA f n)
+    , bgroupIOA "Desc" (descIOA f n)
+    , bgroupIOA "UpDownAsc" (upDownAscIOA f n)
+    , bgroupIOA "UpDownDesc" (upDownDescIOA f n)
+    , bgroupIOA "BigRand" (bigRandIOA f n)
+    , bgroupIOA "SmallRand" (smallRandIOA f n)
+    , bgroupIOA "AscThenRand" (ascThenRandIOA f n)
+    , bgroupIOA "RandThenAsc" (randThenAscIOA f n)
     ]
 
-bgroupMA :: String -> IO (MutableArray RealWorld Int) -> Benchmark
-bgroupMA name mkma = bgroup name
+bgroupIOA :: Ord a => String -> IO (IOArray a) -> Benchmark
+bgroupIOA name mkma = bgroup name
   [ bench "SamSort" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) ->
       samSort ma
@@ -54,9 +60,6 @@ bgroupMA name mkma = bgroup name
       Tim.sort (MV.MVector 0 (sizeofMutableArray ma) ma)
   ]
 
-sizes :: [Int]
-sizes = [0, 1, 10, 1000, 100000]
-
 samSort :: (PrimMonad m, Ord a) => MutableArray (PrimState m) a -> m ()
 samSort (MutableArray ma#) = primitive $ \s ->
   case Sam.sortBy# compare ma# 0# (sizeofMutableArray# ma#) s of
@@ -66,49 +69,57 @@ samSort (MutableArray ma#) = primitive $ \s ->
 -- Data
 ---------
 
-bigRandList :: Int -> [Int]
-bigRandList n = take n $ L.iterate' ((0xffffffff .&.) . (7654321 *)) n
-{-# INLINE bigRandList #-}
+sameIOA :: (Int -> a) -> Int -> IO (IOArray a)
+sameIOA f n = mutableArrayFromListN n (replicate n (f 0))
 
-sameMA :: Int -> IO (MutableArray RealWorld Int)
-sameMA n = mutableArrayFromListN n (replicate n 0)
+ascIOA :: (Int -> a) -> Int -> IO (IOArray a)
+ascIOA f n = mutableArrayFromListN n (map f [1..n])
 
-ascMA :: Int -> IO (MutableArray RealWorld Int)
-ascMA n = mutableArrayFromListN n [1..n]
-
-descMA :: Int -> IO (MutableArray RealWorld Int)
-descMA n = mutableArrayFromListN n [n,n-1..1]
+descIOA :: (Int -> a) -> Int -> IO (IOArray a)
+descIOA f n = mutableArrayFromListN n (map f [n,n-1..1])
 
 -- [2,1,4,3,6,5..]
-upDownAscMA :: Int -> IO (MutableArray RealWorld Int)
-upDownAscMA n = mutableArrayFromListN n (take n (map f [1..]))
+upDownAscIOA :: (Int -> a) -> Int -> IO (IOArray a)
+upDownAscIOA f n = mutableArrayFromListN n (take n (map (f . g) [1..]))
   where
-    f i = if odd i then i+1 else i-1
+    g i = if odd i then i+1 else i-1
 
-upDownDescMA :: Int -> IO (MutableArray RealWorld Int)
-upDownDescMA n = mutableArrayFromListN n (take n (map f [1..]))
+upDownDescIOA :: (Int -> a) -> Int -> IO (IOArray a)
+upDownDescIOA f n = mutableArrayFromListN n (take n (map (f . g) [1..]))
   where
-    f i = n - (if odd i then i+1 else i-1)
+    g i = n - (if odd i then i+1 else i-1)
 
-bigRandMA :: Int -> IO (MutableArray RealWorld Int)
-bigRandMA n = mutableArrayFromListN n (bigRandList n)
+bigRandIOA :: (Int -> a) -> Int -> IO (IOArray a)
+bigRandIOA f n = mutableArrayFromListN n (map f $ randomInts n)
 
-smallRandMA :: Int -> IO (MutableArray RealWorld Int)
-smallRandMA n = mutableArrayFromListN n (take n rs)
+smallRandIOA :: (Int -> a) -> Int -> IO (IOArray a)
+smallRandIOA f n = mutableArrayFromListN n (take n $ map f rs)
   where
-    rs = L.iterate' ((0xff .&.) . (7654321 *)) n
+    rs = map (0xff .&.) $ randomInts n
 
-ascThenRandMA :: Int -> IO (MutableArray RealWorld Int)
-ascThenRandMA n =
-  mutableArrayFromListN n ([1 .. n `div` 2] ++ bigRandList ((n+1) `div` 2))
+ascThenRandIOA :: (Int -> a) -> Int -> IO (IOArray a)
+ascThenRandIOA f n =
+  mutableArrayFromListN
+    n
+    (map f $ [1 .. n `div` 2] ++ randomInts ((n+1) `div` 2))
 
-randThenAscMA :: Int -> IO (MutableArray RealWorld Int)
-randThenAscMA n =
-  mutableArrayFromListN n (bigRandList (n `div` 2) ++ [1 .. (n+1) `div` 2])
+randThenAscIOA :: (Int -> a) -> Int -> IO (IOArray a)
+randThenAscIOA f n =
+  mutableArrayFromListN
+    n
+    (map f $ randomInts (n `div` 2) ++ [1 .. (n+1) `div` 2])
 
 ----------
 -- Utils
 ----------
+
+type IOArray = MutableArray RealWorld
+
+-- LCG
+randomInts :: Int -> [Int]
+randomInts n =
+  take n $ L.iterate' (\i -> 0xffffffff .&. (i * 1103515245 + 12345)) n
+{-# INLINE randomInts #-}
 
 mutableArrayFromListN
   :: PrimMonad m => Int -> [a] -> m (MutableArray (PrimState m) a)
