@@ -38,8 +38,8 @@ bgroupN f n = bgroup (show n) $
     , bgroupIOA "Desc" (descIOA f n)
     , bgroupIOA "UpDownAsc" (upDownAscIOA f n)
     , bgroupIOA "UpDownDesc" (upDownDescIOA f n)
-    , bgroupIOA "BigRand" (bigRandIOA f n)
-    , bgroupIOA "SmallRand" (smallRandIOA f n)
+    , bgroupIOA "Rand" (randIOA f n)
+    , bgroupIOA "RandSmall" (randSmallIOA f n)
     , bgroupIOA "AscThenRand" (ascThenRandIOA f n)
     , bgroupIOA "RandThenAsc" (randThenAscIOA f n)
     ]
@@ -69,45 +69,38 @@ samSort (MutableArray ma#) = primitive $ \s ->
 -- Data
 ---------
 
-sameIOA :: (Int -> a) -> Int -> IO (IOArray a)
-sameIOA f n = mutableArrayFromListN n (replicate n (f 0))
-
-ascIOA :: (Int -> a) -> Int -> IO (IOArray a)
-ascIOA f n = mutableArrayFromListN n (map f [1..n])
-
-descIOA :: (Int -> a) -> Int -> IO (IOArray a)
-descIOA f n = mutableArrayFromListN n (map f [n,n-1..1])
-
--- [2,1,4,3,6,5..]
-upDownAscIOA :: (Int -> a) -> Int -> IO (IOArray a)
-upDownAscIOA f n = mutableArrayFromListN n (take n (map (f . g) [1..]))
+same, asc, desc, upDownAsc, upDownDesc,
+  rand, randSmall, ascThenRand, randThenAsc :: Int -> [Int]
+same n = replicate n 0
+asc n = [1..n]
+desc n = [n,n-1..1]
+upDownAsc n = map f [1..n]
   where
-    g i = if odd i then i+1 else i-1
-
-upDownDescIOA :: (Int -> a) -> Int -> IO (IOArray a)
-upDownDescIOA f n = mutableArrayFromListN n (take n (map (f . g) [1..]))
+    f i = if odd i then i+1 else i-1
+upDownDesc n = map f [1..n]  -- [2,1,4,3,6,5..]
   where
-    g i = n - (if odd i then i+1 else i-1)
-
-bigRandIOA :: (Int -> a) -> Int -> IO (IOArray a)
-bigRandIOA f n = mutableArrayFromListN n (map f $ randomInts n)
-
-smallRandIOA :: (Int -> a) -> Int -> IO (IOArray a)
-smallRandIOA f n = mutableArrayFromListN n (take n $ map f rs)
+    f i = n - (if odd i then i+1 else i-1)
+rand = randomInts
+randSmall n = map (0xff .&.) (randomInts n)
+ascThenRand n = [1..n2] ++ map (\x -> x `mod` n2 + 1) (randomInts (n-n2))
   where
-    rs = map (0xff .&.) $ randomInts n
+    n2 = n `div` 2
+randThenAsc n = map (\x -> x `mod` n2 + 1) (randomInts n2) ++ [1 .. n-n2]
+  where
+    n2 = n `div` 2
 
-ascThenRandIOA :: (Int -> a) -> Int -> IO (IOArray a)
-ascThenRandIOA f n =
-  mutableArrayFromListN
-    n
-    (map f $ [1 .. n `div` 2] ++ randomInts ((n+1) `div` 2))
-
-randThenAscIOA :: (Int -> a) -> Int -> IO (IOArray a)
-randThenAscIOA f n =
-  mutableArrayFromListN
-    n
-    (map f $ randomInts (n `div` 2) ++ [1 .. (n+1) `div` 2])
+sameIOA, ascIOA, descIOA, upDownAscIOA, upDownDescIOA,
+  randIOA, randSmallIOA, ascThenRandIOA, randThenAscIOA
+    :: (Int -> a) -> Int -> IO (IOArray a)
+sameIOA f n = mutableArrayFromListN n (map f (same n))
+ascIOA f n = mutableArrayFromListN n (map f (asc n))
+descIOA f n = mutableArrayFromListN n (map f (desc n))
+upDownAscIOA f n = mutableArrayFromListN n (map f (upDownAsc n))
+upDownDescIOA f n = mutableArrayFromListN n (map f (upDownDesc n))
+randIOA f n = mutableArrayFromListN n (map f (rand n))
+randSmallIOA f n = mutableArrayFromListN n (map f (randSmall n))
+ascThenRandIOA f n = mutableArrayFromListN n (map f (ascThenRand n))
+randThenAscIOA f n = mutableArrayFromListN n (map f (randThenAsc n))
 
 ----------
 -- Utils
