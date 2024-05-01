@@ -523,9 +523,10 @@ intSize# _ = case finiteBitSize (0 :: Int) `shiftR` 3 of I# wsz# -> wsz#
 -- Note [Algorithm overview]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
 -- Find non-decreasing and decreasing runs. Decreasing runs are reversed in
--- place. Maintain a stack of runs. As each run is found, add them to the stack
--- and maintain stack invariants according to the 2-merge strategy. This
--- involves merging adjacent runs. Merging two runs is done by copying the
+-- place. If a run is shorter than minRunLen, extend it to minRunLen using
+-- insertion sort. Maintain a stack of runs. As each run is found, add it to
+-- the stack and maintain stack invariants according to the 2-merge strategy.
+-- This involves merging adjacent runs. Merging two runs is done by copying the
 -- smaller run to a swap array, then merging into the main array. Elements of
 -- the smaller array that can stay in place are skipped and not copied. After
 -- all runs are found, runs on the stack are merged to get the final sorted
