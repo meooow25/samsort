@@ -3,16 +3,31 @@
 {-# LANGUAGE UnboxedTuples #-}
 
 import Control.DeepSeq (NFData(..), rwhnf)
-import Control.Monad.Primitive (PrimMonad(..), RealWorld)
-import Data.Primitive.Array
-  ( MutableArray(..), newArray, sizeofMutableArray, writeArray )
+import Control.Monad.Primitive (PrimMonad(..), RealWorld, primitive_)
+import Control.Monad.ST (stToIO)
 import Data.Bits ((.&.))
+import Data.Primitive.Array
+  ( MutableArray(..)
+  , newArray
+  , sizeofMutableArray
+  , writeArray
+  )
+import Data.Primitive.ByteArray (MutableByteArray(..))
+import Data.Primitive.PrimArray
+  ( MutablePrimArray(..)
+  , getSizeofMutablePrimArray
+  , newPrimArray
+  , writePrimArray
+  )
+import Data.Primitive.Types (Prim)
 import qualified Data.List as L
-import qualified Data.Vector.Mutable as MV
+import qualified Data.Primitive.Sort as PSort
 import qualified Data.Vector.Algorithms.Intro as Intro
 import qualified Data.Vector.Algorithms.Merge as Merge
 import qualified Data.Vector.Algorithms.Tim as Tim
-import GHC.Exts (sizeofMutableArray#)
+import qualified Data.Vector.Primitive.Mutable as MPV
+import qualified Data.Vector.Mutable as MV
+import GHC.Exts (Int(..), sizeofMutableArray#)
 
 import Criterion.Main (Benchmark, defaultMain, bench, bgroup, perRunEnv)
 
@@ -22,6 +37,7 @@ main :: IO ()
 main = defaultMain
   [ bgroup "Int" $ map (bgroupN id) sizes
   , bgroup "Maybe Int" $ map (bgroupN Just) sizes
+  , bgroup "Int (Prim)" $ map bgroupPN sizes
   ]
 
 sizes :: [Int]
@@ -46,24 +62,63 @@ bgroupN f n = bgroup (show n) $
 
 bgroupIOA :: Ord a => String -> IO (IOArray a) -> Benchmark
 bgroupIOA name mkma = bgroup name
-  [ bench "SamSort" $
-    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) ->
-      samSort ma
+  [ bench "samsort sortBy#" $
+    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSort ma
   , bench "vector-algorithms Intro" $
-    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) ->
-      Intro.sort (MV.MVector 0 (sizeofMutableArray ma) ma)
+    perRunEnv mkv $ \(WHNF mv) -> Intro.sort mv
   , bench "vector-algorithms Merge" $
-    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) ->
-      Merge.sort (MV.MVector 0 (sizeofMutableArray ma) ma)
+    perRunEnv mkv $ \(WHNF mv) -> Merge.sort mv
   , bench "vector-algorithms Tim" $
-    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) ->
-      Tim.sort (MV.MVector 0 (sizeofMutableArray ma) ma)
+    perRunEnv mkv $ \(WHNF mv) -> Tim.sort mv
   ]
+  where
+    mkv = fmap (\ma -> WHNF (MV.MVector 0 (sizeofMutableArray ma) ma)) mkma
+
+bgroupPN :: Int -> Benchmark
+bgroupPN n = bgroup (show n) $
+  if n <= 1
+  then
+    [ bgroupIOPA "Same" (sameIOPA n)
+    ]
+  else
+    [ bgroupIOPA "Asc" (ascIOPA n)
+    , bgroupIOPA "Desc" (descIOPA n)
+    , bgroupIOPA "UpDownAsc" (upDownAscIOPA n)
+    , bgroupIOPA "UpDownDesc" (upDownDescIOPA n)
+    , bgroupIOPA "Rand" (randIOPA n)
+    , bgroupIOPA "RandSmall" (randSmallIOPA n)
+    , bgroupIOPA "AscThenRand" (ascThenRandIOPA n)
+    , bgroupIOPA "RandThenAsc" (randThenAscIOPA n)
+    ]
+
+bgroupIOPA :: String -> IO (IOPrimArray Int) -> Benchmark
+bgroupIOPA name mkma = bgroup name
+  [ bench "samsort sortIntsBy#" $
+    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSortInts ma
+  , bench "vector-algorithms Intro" $
+    perRunEnv mkv $ \(WHNF mv) -> Intro.sort mv
+  , bench "vector-algorithms Merge" $
+    perRunEnv mkv $ \(WHNF mv) -> Merge.sort mv
+  , bench "vector-algorithms Tim" $
+    perRunEnv mkv $ \(WHNF mv) -> Tim.sort mv
+  , bench "primitive-sort" $
+    perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> stToIO (PSort.sortMutable ma)
+  ]
+  where
+    mkv :: IO (WHNF (MPV.IOVector Int))
+    mkv = do
+      ma@(MutablePrimArray ma#) <- mkma
+      sz <- getSizeofMutablePrimArray ma
+      pure (WHNF (MPV.MVector 0 sz (MutableByteArray ma#)))
 
 samSort :: (PrimMonad m, Ord a) => MutableArray (PrimState m) a -> m ()
-samSort (MutableArray ma#) = primitive $ \s ->
-  case Sam.sortBy# compare ma# 0# (sizeofMutableArray# ma#) s of
-    s1 -> (# s1, () #)
+samSort (MutableArray ma#) =
+  primitive_ $ Sam.sortBy# compare ma# 0# (sizeofMutableArray# ma#)
+
+samSortInts :: PrimMonad m => MutablePrimArray (PrimState m) Int -> m ()
+samSortInts ma@(MutablePrimArray ma#) = do
+  I# sz# <- getSizeofMutablePrimArray ma
+  primitive_ $ Sam.sortIntsBy# (\x# y# -> compare (I# x#) (I# y#)) ma# 0# sz#
 
 ---------
 -- Data
@@ -92,21 +147,35 @@ randThenAsc n = map (\x -> x `mod` n2 + 1) (randomInts n2) ++ [1 .. n-n2]
 sameIOA, ascIOA, descIOA, upDownAscIOA, upDownDescIOA,
   randIOA, randSmallIOA, ascThenRandIOA, randThenAscIOA
     :: (Int -> a) -> Int -> IO (IOArray a)
-sameIOA f n = mutableArrayFromListN n (map f (same n))
-ascIOA f n = mutableArrayFromListN n (map f (asc n))
-descIOA f n = mutableArrayFromListN n (map f (desc n))
-upDownAscIOA f n = mutableArrayFromListN n (map f (upDownAsc n))
-upDownDescIOA f n = mutableArrayFromListN n (map f (upDownDesc n))
-randIOA f n = mutableArrayFromListN n (map f (rand n))
-randSmallIOA f n = mutableArrayFromListN n (map f (randSmall n))
-ascThenRandIOA f n = mutableArrayFromListN n (map f (ascThenRand n))
-randThenAscIOA f n = mutableArrayFromListN n (map f (randThenAsc n))
+sameIOA f n = mutArrayFromListN n (map f (same n))
+ascIOA f n = mutArrayFromListN n (map f (asc n))
+descIOA f n = mutArrayFromListN n (map f (desc n))
+upDownAscIOA f n = mutArrayFromListN n (map f (upDownAsc n))
+upDownDescIOA f n = mutArrayFromListN n (map f (upDownDesc n))
+randIOA f n = mutArrayFromListN n (map f (rand n))
+randSmallIOA f n = mutArrayFromListN n (map f (randSmall n))
+ascThenRandIOA f n = mutArrayFromListN n (map f (ascThenRand n))
+randThenAscIOA f n = mutArrayFromListN n (map f (randThenAsc n))
+
+sameIOPA, ascIOPA, descIOPA, upDownAscIOPA, upDownDescIOPA,
+  randIOPA, randSmallIOPA, ascThenRandIOPA, randThenAscIOPA
+    :: Int -> IO (IOPrimArray Int)
+sameIOPA n = mutPrimArrayFromListN n (same n)
+ascIOPA n = mutPrimArrayFromListN n (asc n)
+descIOPA n = mutPrimArrayFromListN n (desc n)
+upDownAscIOPA n = mutPrimArrayFromListN n (upDownAsc n)
+upDownDescIOPA n = mutPrimArrayFromListN n (upDownDesc n)
+randIOPA n = mutPrimArrayFromListN n (rand n)
+randSmallIOPA n = mutPrimArrayFromListN n (randSmall n)
+ascThenRandIOPA n = mutPrimArrayFromListN n (ascThenRand n)
+randThenAscIOPA n = mutPrimArrayFromListN n (randThenAsc n)
 
 ----------
 -- Utils
 ----------
 
 type IOArray = MutableArray RealWorld
+type IOPrimArray = MutablePrimArray RealWorld
 
 -- LCG
 randomInts :: Int -> [Int]
@@ -114,14 +183,23 @@ randomInts n =
   take n $ L.iterate' (\i -> 0xffffffff .&. (i * 1103515245 + 12345)) n
 {-# INLINE randomInts #-}
 
-mutableArrayFromListN
+mutArrayFromListN
   :: PrimMonad m => Int -> [a] -> m (MutableArray (PrimState m) a)
-mutableArrayFromListN n xs = do
+mutArrayFromListN n xs = do
   ma <- newArray n (error "errorElement")
   let f x k !i = writeArray ma i x *> k (i+1)
   foldr f (\ !_ -> pure ()) xs 0
   pure ma
-{-# INLINE mutableArrayFromListN #-}
+{-# INLINE mutArrayFromListN #-}
+
+mutPrimArrayFromListN
+  :: (PrimMonad m, Prim a) => Int -> [a] -> m (MutablePrimArray (PrimState m) a)
+mutPrimArrayFromListN n xs = do
+  ma <- newPrimArray n
+  let f x k !i = writePrimArray ma i x *> k (i+1)
+  foldr f (\ !_ -> pure ()) xs 0
+  pure ma
+{-# INLINE mutPrimArrayFromListN #-}
 
 newtype WHNF a = WHNF a
 

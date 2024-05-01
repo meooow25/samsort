@@ -13,10 +13,11 @@ benchmark compare
 
     build-depends:
         base
-      , deepseq
-      , samsort
-      , primitive
       , criterion
+      , deepseq
+      , primitive
+      , primitive-sort
+      , samsort
       , vector
       , vector-algorithms
 
