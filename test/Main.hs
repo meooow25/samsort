@@ -1,6 +1,4 @@
 {-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 import qualified Data.Foldable as F
 import qualified Data.List as L
@@ -15,14 +13,11 @@ import Data.Primitive.PrimArray
   , sizeofPrimArray
   , thawPrimArray
   )
-import GHC.ST (ST(..))
-import GHC.Exts (Int(..), Int#)
-
 import Test.Tasty (defaultMain, localOption, testGroup)
 import Test.Tasty.QuickCheck (QuickCheckTests(..), Fun, applyFun, testProperty, (===))
 import Test.QuickCheck.Poly (A, OrdA)
 
-import Data.SamSort (sortArrayBy#, sortIntArrayBy#)
+import Data.SamSort (sortArrayBy, sortIntArrayBy)
 
 main :: IO ()
 main = defaultMain $ localOption (QuickCheckTests 5000) $ testGroup "Tests"
@@ -45,7 +40,8 @@ sortViaMutableArray
 sortViaMutableArray cmp (xs,ys,zs) = F.toList $ runArray $ do
   let a = arrayFromList (xs ++ ys ++ zs)
   ma@(MutableArray ma#) <- thawArray a 0 (sizeofArray a)
-  ST $ \s -> case sortArrayBy# cmp ma# (len# xs) (len# ys) s of s1 -> (# s1, ma #)
+  sortArrayBy cmp ma# (length xs) (length ys)
+  pure ma
 
 sortViaMutableIntArray
   :: (Int -> Int -> Ordering)
@@ -54,14 +50,5 @@ sortViaMutableIntArray
 sortViaMutableIntArray cmp (xs,ys,zs) = primArrayToList $ runPrimArray $ do
   let a = primArrayFromList (xs ++ ys ++ zs)
   ma@(MutablePrimArray ma#) <- thawPrimArray a 0 (sizeofPrimArray a)
-  ST $ \s ->
-    case sortIntArrayBy#
-           (\x# y# -> cmp (I# x#) (I# y#))
-           ma#
-           (len# xs)
-           (len# ys)
-           s of
-      s1 -> (# s1, ma #)
-
-len# :: [a] -> Int#
-len# as = case length as of I# n# -> n#
+  sortIntArrayBy cmp ma# (length xs) (length ys)
+  pure ma
