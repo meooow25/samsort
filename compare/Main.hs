@@ -60,7 +60,7 @@ bgroupN f n = bgroup (show n) $
 
 bgroupIOA :: Ord a => String -> IO (IOArray a) -> Benchmark
 bgroupIOA name mkma = bgroup name
-  [ bench "samsort sortArrayBy#" $
+  [ bench "samsort sortArrayBy" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSort ma
   , bench "vector-algorithms Intro" $
     perRunEnv mkmv $ \(WHNF mv) -> Intro.sort mv
@@ -91,7 +91,7 @@ bgroupPN n = bgroup (show n) $
 
 bgroupIOPA :: String -> IO (IOPrimArray Int) -> Benchmark
 bgroupIOPA name mkma = bgroup name
-  [ bench "samsort sortIntArrayBy#" $
+  [ bench "samsort sortIntArrayBy" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSortInts ma
   , bench "vector-algorithms Intro" $
     perRunEnv mkmv $ \(WHNF mv) -> Intro.sort mv

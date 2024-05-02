@@ -21,11 +21,11 @@ import Data.SamSort (sortArrayBy, sortIntArrayBy)
 
 main :: IO ()
 main = defaultMain $ localOption (QuickCheckTests 5000) $ testGroup "Tests"
-  [ testProperty "sortArrayBy#" $ \xs ys zs ->
+  [ testProperty "sortArrayBy" $ \xs ys zs ->
       sortViaMutableArray (comparing fst) (xs,ys,zs)
       ===
       ((xs :: [(OrdA, A)]) ++ L.sortBy (comparing fst) ys ++ zs)
-  , testProperty "sortIntArrayBy#" $ \f xs ys zs ->
+  , testProperty "sortIntArrayBy" $ \f xs ys zs ->
       sortViaMutableIntArray
         (comparing (applyFun (f :: Fun Int OrdA)))
         (xs,ys,zs)
