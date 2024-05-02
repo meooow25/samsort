@@ -31,25 +31,27 @@ main = defaultMain $ localOption (QuickCheckTests 5000) $ testGroup "Tests"
       ===
       ((xs :: [(OrdA, A)]) ++ L.sortBy (comparing fst) ys ++ zs)
   , testProperty "sortIntArrayBy#" $ \f xs ys zs ->
-      sortInts (comparing (applyFun (f :: Fun Int OrdA))) (xs,ys,zs)
+      sortViaMutableIntArray
+        (comparing (applyFun (f :: Fun Int OrdA)))
+        (xs,ys,zs)
       ===
       (xs ++ L.sortBy (comparing (applyFun f)) ys ++ zs)
   ]
 
 sortViaMutableArray
   :: (a -> a -> Ordering)
-  -> ([a],[a],[a])
+  -> ([a], [a], [a])
   -> [a]
 sortViaMutableArray cmp (xs,ys,zs) = F.toList $ runArray $ do
   let a = arrayFromList (xs ++ ys ++ zs)
   ma@(MutableArray ma#) <- thawArray a 0 (sizeofArray a)
   ST $ \s -> case sortArrayBy# cmp ma# (len# xs) (len# ys) s of s1 -> (# s1, ma #)
 
-sortInts
+sortViaMutableIntArray
   :: (Int -> Int -> Ordering)
-  -> ([Int],[Int],[Int])
+  -> ([Int], [Int], [Int])
   -> [Int]
-sortInts cmp (xs,ys,zs) = primArrayToList $ runPrimArray $ do
+sortViaMutableIntArray cmp (xs,ys,zs) = primArrayToList $ runPrimArray $ do
   let a = primArrayFromList (xs ++ ys ++ zs)
   ma@(MutablePrimArray ma#) <- thawPrimArray a 0 (sizeofPrimArray a)
   ST $ \s ->

@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 import Control.DeepSeq (NFData(..), rwhnf)
 import Control.Monad.Primitive (PrimMonad(..), RealWorld, primitive_)
@@ -65,14 +64,14 @@ bgroupIOA name mkma = bgroup name
   [ bench "samsort sortArrayBy#" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSort ma
   , bench "vector-algorithms Intro" $
-    perRunEnv mkv $ \(WHNF mv) -> Intro.sort mv
+    perRunEnv mkmv $ \(WHNF mv) -> Intro.sort mv
   , bench "vector-algorithms Merge" $
-    perRunEnv mkv $ \(WHNF mv) -> Merge.sort mv
+    perRunEnv mkmv $ \(WHNF mv) -> Merge.sort mv
   , bench "vector-algorithms Tim" $
-    perRunEnv mkv $ \(WHNF mv) -> Tim.sort mv
+    perRunEnv mkmv $ \(WHNF mv) -> Tim.sort mv
   ]
   where
-    mkv = fmap (\ma -> WHNF (MV.MVector 0 (sizeofMutableArray ma) ma)) mkma
+    mkmv = fmap (\ma -> WHNF (MV.MVector 0 (sizeofMutableArray ma) ma)) mkma
 
 bgroupPN :: Int -> Benchmark
 bgroupPN n = bgroup (show n) $
@@ -96,17 +95,17 @@ bgroupIOPA name mkma = bgroup name
   [ bench "samsort sortIntArrayBy#" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSortInts ma
   , bench "vector-algorithms Intro" $
-    perRunEnv mkv $ \(WHNF mv) -> Intro.sort mv
+    perRunEnv mkmv $ \(WHNF mv) -> Intro.sort mv
   , bench "vector-algorithms Merge" $
-    perRunEnv mkv $ \(WHNF mv) -> Merge.sort mv
+    perRunEnv mkmv $ \(WHNF mv) -> Merge.sort mv
   , bench "vector-algorithms Tim" $
-    perRunEnv mkv $ \(WHNF mv) -> Tim.sort mv
+    perRunEnv mkmv $ \(WHNF mv) -> Tim.sort mv
   , bench "primitive-sort" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> stToIO (PSort.sortMutable ma)
   ]
   where
-    mkv :: IO (WHNF (MPV.IOVector Int))
-    mkv = do
+    mkmv :: IO (WHNF (MPV.IOVector Int))
+    mkmv = do
       ma@(MutablePrimArray ma#) <- mkma
       sz <- getSizeofMutablePrimArray ma
       pure (WHNF (MPV.MVector 0 sz (MutableByteArray ma#)))
