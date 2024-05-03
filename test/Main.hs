@@ -13,6 +13,7 @@ import Data.Primitive.PrimArray
   , sizeofPrimArray
   , thawPrimArray
   )
+
 import Test.Tasty (defaultMain, localOption, testGroup)
 import Test.Tasty.QuickCheck (QuickCheckTests(..), Fun, applyFun, testProperty, (===))
 import Test.QuickCheck.Poly (A, OrdA)
