@@ -2,7 +2,7 @@
 {-# LANGUAGE MagicHash #-}
 
 import Control.DeepSeq (NFData(..), rwhnf)
-import Control.Monad.Primitive (PrimMonad(..), RealWorld, primitive_)
+import Control.Monad.Primitive (PrimMonad(..), RealWorld, stToPrim)
 import Control.Monad.ST (stToIO)
 import Data.Bits ((.&.))
 import Data.Primitive.Array
@@ -26,7 +26,6 @@ import qualified Data.Vector.Algorithms.Merge as Merge
 import qualified Data.Vector.Algorithms.Tim as Tim
 import qualified Data.Vector.Primitive.Mutable as MPV
 import qualified Data.Vector.Mutable as MV
-import GHC.Exts (Int(..), sizeofMutableArray#)
 
 import Criterion.Main (Benchmark, defaultMain, bench, bgroup, perRunEnv)
 
@@ -61,7 +60,7 @@ bgroupN f n = bgroup (show n) $
 
 bgroupIOA :: Ord a => String -> IO (IOArray a) -> Benchmark
 bgroupIOA name mkma = bgroup name
-  [ bench "samsort sortArrayBy#" $
+  [ bench "samsort sortArrayBy" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSort ma
   , bench "vector-algorithms Intro" $
     perRunEnv mkmv $ \(WHNF mv) -> Intro.sort mv
@@ -92,7 +91,7 @@ bgroupPN n = bgroup (show n) $
 
 bgroupIOPA :: String -> IO (IOPrimArray Int) -> Benchmark
 bgroupIOPA name mkma = bgroup name
-  [ bench "samsort sortIntArrayBy#" $
+  [ bench "samsort sortIntArrayBy" $
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> samSortInts ma
   , bench "vector-algorithms Intro" $
     perRunEnv mkmv $ \(WHNF mv) -> Intro.sort mv
@@ -111,13 +110,13 @@ bgroupIOPA name mkma = bgroup name
       pure (WHNF (MPV.MVector 0 sz (MutableByteArray ma#)))
 
 samSort :: (PrimMonad m, Ord a) => MutableArray (PrimState m) a -> m ()
-samSort (MutableArray ma#) =
-  primitive_ $ Sam.sortArrayBy# compare ma# 0# (sizeofMutableArray# ma#)
+samSort ma@(MutableArray ma#) =
+  stToPrim $ Sam.sortArrayBy compare ma# 0 (sizeofMutableArray ma)
 
 samSortInts :: PrimMonad m => MutablePrimArray (PrimState m) Int -> m ()
 samSortInts ma@(MutablePrimArray ma#) = do
-  I# sz# <- getSizeofMutablePrimArray ma
-  primitive_ $ Sam.sortIntArrayBy# (\x# y# -> compare (I# x#) (I# y#)) ma# 0# sz#
+  sz <- getSizeofMutablePrimArray ma
+  stToPrim $ Sam.sortIntArrayBy compare ma# 0 sz
 
 ---------
 -- Data

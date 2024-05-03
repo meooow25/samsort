@@ -16,8 +16,8 @@
 --   https://arxiv.org/abs/1801.04641
 --
 module Data.SamSort
-  ( sortArrayBy#
-  , sortIntArrayBy#
+  ( sortArrayBy
+  , sortIntArrayBy
   ) where
 
 import Control.Monad (when)
@@ -29,7 +29,6 @@ import GHC.Exts
   , Int(..)
   , MutableArray#
   , MutableByteArray#
-  , State#
   , (*#)
   , copyMutableArray#
   , copyMutableByteArray#
@@ -56,27 +55,24 @@ import GHC.Exts
 -- known comparison functions. To avoid code duplication, create a wrapping
 -- definition and reuse it as necessary.
 --
-sortArrayBy#
+sortArrayBy
   :: (a -> a -> Ordering)  -- ^ comparison
   -> MutableArray# s a
-  -> Int#                  -- ^ offset
-  -> Int#                  -- ^ length
-  -> State# s
-  -> State# s
-sortArrayBy# cmp =  -- Inline with 1 arg
-  \ma# off# len# s ->
-    case sortArrayByST cmp (MA ma#) (I# off#) (I# len#) of
-      ST f -> case f s of (# s1, _ #) -> s1
-{-# INLINE sortArrayBy# #-}
+  -> Int                   -- ^ offset
+  -> Int                   -- ^ length
+  -> ST s ()
+sortArrayBy cmp =  -- Inline with 1 arg
+  \ma# !off !len -> sortArrayBy' cmp (MA ma#) off len
+{-# INLINE sortArrayBy #-}
 
-sortArrayByST
+sortArrayBy'
   :: (a -> a -> Ordering)
   -> MA s a
   -> Int
   -> Int
   -> ST s ()
-sortArrayByST _ !_ !_ len | len < 2 = pure ()
-sortArrayByST cmp ma off len = do
+sortArrayBy' _ !_ !_ len | len < 2 = pure ()
+sortArrayBy' cmp ma off len = do
   -- See Note [Algorithm overview]
 
   !swp <- newA (len `shiftR` 1) errorElement
@@ -191,7 +187,7 @@ sortArrayByST cmp ma off len = do
     !end = off + len
 
     getRun = mkGetRun lt (readA ma) (writeA ma) (reverseA ma) end
-{-# INLINE sortArrayByST #-}
+{-# INLINE sortArrayBy' #-}
 
 -- | \(O(n \log n)\). Sort a slice of a @MutableByteArray#@ interpreted as an
 -- array of @Int#@s using a comparison function.
@@ -208,27 +204,24 @@ sortArrayByST cmp ma off len = do
 -- known comparison functions. To avoid code duplication, create a wrapping
 -- definition and reuse it as necessary.
 --
-sortIntArrayBy#
-  :: (Int# -> Int# -> Ordering)  -- ^ comparison
+sortIntArrayBy
+  :: (Int -> Int -> Ordering)  -- ^ comparison
   -> MutableByteArray# s
-  -> Int#                        -- ^ offset in @Int#@s
-  -> Int#                        -- ^ length in @Int#@s
-  -> State# s
-  -> State# s
-sortIntArrayBy# cmp =  -- Inline with 1 arg
-  \ma# off# len# s ->
-    case sortIntArrayByST cmp (MIA ma#) (I# off#) (I# len#) of
-      ST f -> case f s of (# s1, _ #) -> s1
-{-# INLINE sortIntArrayBy# #-}
+  -> Int                       -- ^ offset in @Int#@s
+  -> Int                       -- ^ length in @Int#@s
+  -> ST s ()
+sortIntArrayBy cmp =  -- Inline with 1 arg
+  \ma# !off !len -> sortIntArrayBy' cmp (MIA ma#) off len
+{-# INLINE sortIntArrayBy #-}
 
-sortIntArrayByST
-  :: (Int# -> Int# -> Ordering)
+sortIntArrayBy'
+  :: (Int -> Int -> Ordering)
   -> MIA s
   -> Int
   -> Int
   -> ST s ()
-sortIntArrayByST _ !_ !_ len | len < 2 = pure ()
-sortIntArrayByST cmp ma off len = do
+sortIntArrayBy' _ !_ !_ len | len < 2 = pure ()
+sortIntArrayBy' cmp ma off len = do
   -- See Note [Algorithm overview]
 
   !swp <- newI (len `shiftR` 1)
@@ -306,7 +299,7 @@ sortIntArrayByST cmp ma off len = do
   mergeStrategy merge getRun stk off end
 
   where
-    lt (I# x#) (I# y#) = case cmp x# y# of LT -> True; _ -> False
+    lt !x !y = case cmp x y of LT -> True; _ -> False
     {-# INLINE lt #-}
     -- Note: Use lt instead of gt. Why? Because `compare` for types like Int and
     -- Word are defined in a way that needs one `<` op for LT but two (`<`,`==`)
@@ -315,7 +308,7 @@ sortIntArrayByST cmp ma off len = do
     !end = off + len
 
     getRun = mkGetRun lt (readI ma) (writeI ma) (reverseI ma) end
-{-# INLINE sortIntArrayByST #-}
+{-# INLINE sortIntArrayBy' #-}
 
 mkGetRun
   :: (a -> a -> Bool)        -- comparison
