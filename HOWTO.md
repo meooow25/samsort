@@ -22,8 +22,9 @@ So how does one use this?
 
 * The first parameter is a comparison function that will be used to order the
   elements.
-* The second parameter is a `MutableArray#` with elements of type `a`. This is a
-  primitive array type provided by GHC. This array will be sorted in place.
+* The second parameter is a [`MutableArray#`](https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-Exts.html#t:MutableArray-35-)
+  with elements of type `a`. This is a primitive array type provided by GHC.
+  This array will be sorted in place.
 * The third and fourth parameters are `Int`s which demarcate a slice of the
   array. Elements in this slice will be sorted, and other elements will not be
   touched.
@@ -34,12 +35,12 @@ Clearly, to use `sortArrayBy`, an important step is to put the elements to be
 sorted into a `MutableArray#`. The most convenient way to do this depends on how
 the elements are stored prior to sorting.
 
-### Example 1: `MVector`
+### Example 1: [`MVector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Mutable.html#t:MVector)
 
-Consider that we need to sort a mutable vector [`MVector`](https://hackage.haskell.org/package/vector-0.13.0.0/docs/Data-Vector-Mutable.html)
-from the `vector` library. This is quite easy, and in fact we do not need to
-put elements anywhere because the underlying representation of an `MVector` is a
-`MutableArray#`! We only need to get it out of the `MVector`.
+Consider that we need to sort a mutable vector `MVector` from the `vector`
+library. This is quite easy, and in fact we do not need to put elements anywhere
+because the underlying representation of an `MVector` is a `MutableArray#`! We
+only need to get it out of the `MVector`.
 
 ```hs
 import Control.Monad.Primitive (PrimMonad(..), stToPrim)  -- from the package "primitive"
@@ -58,7 +59,7 @@ sortMVBy cmp (MVector off len (MutableArray ma)) =
   stToPrim $ Sam.sortArrayBy cmp ma off len
 ```
 
-### Example 2: `Vector`
+### Example 2: [`Vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector.html#t:Vector)
 
 Now consider sorting an (immutable) [`Vector`](https://hackage.haskell.org/package/vector-0.13.0.0/docs/Data-Vector.html),
 again from the `vector` library. Since we cannot mutate it, we will return a
@@ -164,7 +165,7 @@ As you might have guessed, this sorts an unboxed array of `Int`s. We can use
 this whenever we need to sort `Int`s, or even other types that may be cheaply
 converted to and from `Int`s (like `Word`).
 
-### Example 1: Unboxed `MVector`
+### Example 1: [Unboxed `MVector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Unboxed-Mutable.html#t:MVector)
 
 Let us sort a mutable unboxed `MVector Int` from `vector`. Like with the
 boxed `MVector`, we do not need to move the elements because the underlying
@@ -202,7 +203,7 @@ sortVUMIntBy cmp mv = case mv of
 We have now covered sorting boxed values, and sorting `Int`s. What about other
 types in unboxed arrays?
 
-### Example: Unboxed `Vector`
+### Example 1: [Unboxed `Vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Unboxed.html#t:Vector)
 
 Consider that we need to a sort an unboxed vector of some type `a`. The `vector`
 library is designed in a way that the underlying representation of a unboxed
