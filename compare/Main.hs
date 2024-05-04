@@ -237,21 +237,23 @@ sortVecUsing sortf v = VG.create $ do
   vm <- VG.thaw v
   sortf vm
   pure vm
+{-# INLINE sortVecUsing #-}
 
 sortVecByIdxUsing
   :: (Ord a, VG.Vector v a)
-  => (forall s. (Int -> Int -> Ordering) -> VU.MVector s Int -> ST s ())
+  => (forall s. (Int -> Int -> Ordering) -> VP.MVector s Int -> ST s ())
   -> v a
   -> v a
 sortVecByIdxUsing sortf v =
-  VG.generate n (VG.unsafeIndex v . VU.unsafeIndex ixa)
+  VG.generate n (VG.unsafeIndex v . VP.unsafeIndex ixa)
   where
     n = VG.length v
-    ixa = VU.create $ do
-      ixma <- VUM.generate n id
+    ixa = VP.create $ do
+      ixma <- VPM.generate n id
       let cmp i j = compare (VG.unsafeIndex v i) (VG.unsafeIndex v j)
       sortf cmp ixma
       pure ixma
+{-# INLINE sortVecByIdxUsing #-}
 
 ---------
 -- Data
