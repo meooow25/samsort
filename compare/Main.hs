@@ -322,7 +322,7 @@ sameW8VU n = VU.fromList (map fromIntegral (same n))
 randSmallW8VU n = VU.fromList (map fromIntegral (randSmall n))
 
 i3FromInt :: Int -> (Int, Int, Int)
-i3FromInt x = let x' = fromIntegral x in (x',x',x')
+i3FromInt x = (x,x,x)
 
 ----------
 -- Utils
