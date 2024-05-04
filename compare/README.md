@@ -6,15 +6,15 @@ is at [`result/result.csv`](result/result.csv).
 
 ## Comparing with other libraries
 
-| Label | Library | Function |
-| --- | --- | --- |
-| `ssArray` | `samsort` | `Data.SamSort.sortArrayBy` |
-| `ssIntArray` | `samsort` | `Data.SamSort.sortIntArrayBy` |
-| `vaHeap` | `vector-algorithms` | `Data.Vector.Algorithms.Heap.sortBy` |
-| `vaIntro` | `vector-algorithms` | `Data.Vector.Algorithms.Intro.sortBy` |
-| `vaMerge` | `vector-algorithms` | `Data.Vector.Algorithms.Merge.sortBy` |
-| `vaTip` | `vector-algorithms` | `Data.Vector.Algorithms.Tim.sortBy` |
-| `ps` | `primitive-sort` | `Data.Primitive.Sort.sortMutableBy` |
+| Library             | Function                              | Stable | Adaptive | Label        |
+| ---                 | ---                                   | ---    | ---      | ---          |
+| `samsort`           | `Data.SamSort.sortArrayBy`            | Yes    | Yes      | `ssArray`    |
+| `samsort`           | `Data.SamSort.sortIntArrayBy`         | Yes    | Yes      | `ssIntArray` |
+| `vector-algorithms` | `Data.Vector.Algorithms.Heap.sortBy`  | No     | No       | `vaHeap`     |
+| `vector-algorithms` | `Data.Vector.Algorithms.Intro.sortBy` | No     | No       | `vaIntro`    |
+| `vector-algorithms` | `Data.Vector.Algorithms.Merge.sortBy` | Yes    | No       | `vaMerge`    |
+| `vector-algorithms` | `Data.Vector.Algorithms.Tim.sortBy`   | Yes    | Yes      | `vaTim`      |
+| `primitive-sort`    | `Data.Primitive.Sort.sortMutableBy`   | Yes    | No       | `ps`         |
 
 An `-i` suffix indicates that the sort was done by index.
 

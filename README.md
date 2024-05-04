@@ -6,20 +6,18 @@ A stable adapative mergesort implementation
 
 ## Features
 
-This is a lightweight library offering a high performance primitive sort
-function. The function sorts a GHC
-[`MutableArray#`](https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-Exts.html#t:MutableArray-35-)
-in place.
+This is a lightweight library offering two high performance sort functions:
+
+* `sortArrayBy` sorts a GHC [`MutableArray#`](https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-Exts.html#t:MutableArray-35-)
+  of boxed elements in place.
+* `sortIntArrayBy` sorts a GHC [`MutableByteArray#`](https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-Exts.html#t:MutableByteArray-35-)
+  of `Int#`s in place.
 
 There are no dependencies outside of `base`. This means that this library is
 not tied to array abstractions from any particular library. This also means
-that you may need to write a wrapper function that sorts your flavor of Haskell
-array, such as ones from
-[`primitive`](https://hackage.haskell.org/package/primitive-0.9.0.0/docs/Data-Primitive-Array.html#t:MutableArray),
-[`vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Mutable.html#t:MVector),
-[`array`](https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-Arr.html#t:STArray),
-or elsewhere. You can find an example with `primitive`
-[here](https://github.com/meooow25/samsort/blob/82b7b9c84919a6d44484df9375a63d26c0520716/compare/Main.hs#L61-L64).
+that you may need to write a few lines of code to get a `MutableArray#` or
+`MutableByteArray#` from your data, which can then be sorted. See `HOWTO.md` for
+a demonstration.
 
 If you need to use this library in an environment where you cannot depend on
 other packages, you may simply copy the lone source file
@@ -34,21 +32,20 @@ to your project.
 * The sort is adaptive, i.e. the sort identifies and uses ascending and
   descending runs of elements occuring in the input to perform less work. As a
   result, the sort is $O(n)$ for already sorted inputs.
-* The performance is comparable to and in many cases better than the comparison
-  sorts from the [vector-algorithms](https://hackage.haskell.org/package/vector-algorithms)
-  library. See [the benchmarks](https://github.com/meooow25/samsort/tree/master/compare)
+* The sort is the fastest among implementations from other libraries in most
+  scenarios. [See the benchmarks](https://github.com/meooow25/samsort/tree/master/compare)
   for details.
 
-## FAQ
+## Known issues
 
-#### Why not use \<insert strategy\>?
+Ideally, this library would offer only an algorithm, capable of sorting arrays
+of any flavor. To support different arrays we would need to rely on some
+abstraction, either from another library (like `vector`), or created here. We
+cannot do either of those while also keeping the library as lightweight as it
+is now.
 
-I'm open to changing the implemention if an alternative is demonstrated to
-perform better, as long as the sort remains stable and adaptive.
+## Contributing
 
-#### How do I sort an unboxed array with this library?
-
-You can't. To sort different types of arrays, I would have to rely on an
-existing library's abstractions (like `vector-algorithms` relies on `vector`),
-or roll my own. This goes against the goal of keeping the library lightweight. I
-do not have a solution to this problem at the moment.
+Questions, bug reports, documentation improvements, code contributions welcome!
+Please [open an issue](https://github.com/meooow25/samsort/issues) as the first
+step. Slow performance counts as a bug!
