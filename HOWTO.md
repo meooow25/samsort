@@ -61,10 +61,9 @@ sortMVBy cmp (MVector off len (MutableArray ma)) =
 
 ### Example 2: [`Vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector.html#t:Vector)
 
-Now consider sorting an (immutable) [`Vector`](https://hackage.haskell.org/package/vector-0.13.0.0/docs/Data-Vector.html),
-again from the `vector` library. Since we cannot mutate it, we will return a
-sorted copy. The most convenient way here to thaw to a `MVector` and sort it as
-we did above.
+Now consider sorting an (immutable) `Vector`, again from the `vector` library.
+Since we cannot mutate it, we will return a sorted copy. The most convenient way
+here to thaw to a `MVector` and sort it as we did above.
 
 ```hs
 import Data.Vector (Vector)
@@ -137,7 +136,7 @@ In GHCI,
 
 > [!TIP]
 >
-> Avoid `Data.List`'s `sort` and `sortBy` when a large number elements need
+> Avoid `Data.List`'s `sort` and `sortBy` when a large number of elements need
 > to be fully sorted and performance is a concern. Sorting lists in inherently
 > inefficient. Put the elements in a mutable array and use this (or some other)
 > sorting library instead.
@@ -145,12 +144,12 @@ In GHCI,
 ## Sorting `Int`s
 
 Converting to a `MutableArray#` and sorting, as explained in the above section,
-should cover the majority of use cases. However, sometimes that is not the best
-option. For instance, we may be storing our elements in an unboxed array for
+should cover the majority of use cases. However, sometimes it is not the
+best option. For instance, we may be storing `Int`s in an unboxed array for
 efficiency. Having to pull them out and box them for sorting does not sound
 good.
 
-The second function is provided by this library is:
+The second function provided by this library is
 
 ```hs
 sortIntArrayBy
@@ -167,9 +166,9 @@ converted to and from `Int`s (like `Word`).
 
 ### Example 1: [Unboxed `MVector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Unboxed-Mutable.html#t:MVector)
 
-Let us sort a mutable unboxed `MVector Int` from `vector`. Like with the
-boxed `MVector`, we do not need to move the elements because the underlying
-representation is a `MutableByteArray#`.
+Let us sort a mutable unboxed `MVector Int`. Like with the boxed `MVector`,
+we do not need to move the elements because the underlying representation is a
+`MutableByteArray#`.
 
 ```hs
 import Control.Monad.Primitive (PrimMonad(..), stToPrim)
@@ -207,14 +206,17 @@ types in unboxed arrays?
 
 Consider that we need to a sort an unboxed vector of some type `a`. The `vector`
 library is designed in a way that the underlying representation of a unboxed
-vector can be anything depending on the type `a`. So we cannot assume anything
+vector can be anything depending on the type `a`. We cannot assume anything
 about it.
 
-We know that we can index such a vector efficiently. So we will sort such a
-vector by index. First we will create an `Int` vector, the elements of which
-will be indices into the `a` vector. Then we will sort this `Int` vector using
-a comparison function that indexes the `a` vector and compares `a`s. Finally, we
-will construct a vector with `a`s in the order of the sorted indices.
+We know that we can index such a vector efficiently. We also know that we can
+construct such vectors from a `Int -> a` using the handy `generate` function. We
+will use these facts to sort such a vector.
+
+First we will create an `Int` vector, the elements of which will be indices into
+the `a` vector. Then we will sort this `Int` vector using a comparison function
+that indexes the `a` vector and compares `a`s. Finally, we will construct a
+vector with `a`s in the order of the sorted indices.
 
 This technique is general enough that we can sort any flavor of `Vector`
 (boxed, `Unboxed`, `Prim`, `Storable`), so let us use `Vector.Generic` to
@@ -266,7 +268,7 @@ We can see that the sort works as expected in GHCI.
 
 And we can see [in benchmarks](https://github.com/meooow25/samsort/tree/master/compare#4-sort-105-int-int-ints-unboxed)
 that sorting by index is indeed more efficient that sorting directly, for
-elements of type `(Int,Int,Int)` and sort implementations which support both.
+elements of type `(Int, Int, Int)` and sort implementations which support both.
 
 ## Sorting unboxed arrays of small elements
 
@@ -281,15 +283,15 @@ Our options as seen above are
 * Sort by index. Better, but has avoidable allocations in the form of the
   index array.
 
-Neither are ideal. The most efficient way to sort small elements is to
-sort an array of such elements directly. Unfortunately this library cannot to
-used to do this. This library offers only two functions, one to sort boxed
-values, and one to sort `Int`s.
+Neither are ideal. The most efficient way to sort small elements is to sort the
+array of such elements directly. Unfortunately, this library cannot to used to
+do this because there are only two functions, one to sort boxed values, and one
+to sort `Int`s.
 
-If we must use this library to sort such small elements, sort by index is the
-method of choice. It is not ideal, but it will not be terrible.
+If we must use this library to sort such small elements, sorting by index is the
+method of choice. It is not ideal, but it will not be slow either.
 
-You can also consider the library [`primitive-sort`](https://hackage.haskell.org/package/primitive-sort).
+You may also consider the library [`primitive-sort`](https://hackage.haskell.org/package/primitive-sort).
 It can sort such small elements efficiently, though it has some drawbacks (not
 adaptive, cannot sort a slice, cannot sort using a comparison function, more
 dependencies).
