@@ -149,7 +149,7 @@ option. For instance, we may be storing our elements in an unboxed array for
 efficiency. Having to pull them out and box them for sorting does not sound
 good.
 
-To sort unboxed `Int`s, a second function is provided by this library:
+The second function is provided by this library is:
 
 ```hs
 sortIntArrayBy
