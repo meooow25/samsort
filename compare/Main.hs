@@ -7,6 +7,7 @@ import Control.DeepSeq (NFData(..), rwhnf)
 import Control.Monad.Primitive (PrimMonad(..), RealWorld, stToPrim)
 import Control.Monad.ST (ST, stToIO)
 import Data.Bits ((.&.))
+import qualified Data.List as L
 import Data.Primitive.Array
   ( MutableArray(..)
   , newArray
@@ -21,21 +22,19 @@ import Data.Primitive.PrimArray
   , newPrimArray
   , writePrimArray
   )
-import Data.Primitive.Types (Prim)
-import qualified Data.List as L
 import qualified Data.Primitive.Sort as PSort
+import Data.Primitive.Types (Prim)
 import qualified Data.Vector.Algorithms.Heap as Heap
 import qualified Data.Vector.Algorithms.Intro as Intro
 import qualified Data.Vector.Algorithms.Merge as Merge
 import qualified Data.Vector.Algorithms.Tim as Tim
-import qualified Data.Vector.Primitive.Mutable as MPV
+import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Primitive as VP
 import qualified Data.Vector.Primitive.Mutable as VPM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Unboxed.Base as VUB
 import qualified Data.Vector.Unboxed.Mutable as VUM
-import qualified Data.Vector.Generic as VG
 import Data.Word (Word8)
 
 import Criterion.Main (Benchmark, defaultMain, bench, bgroup, perRunEnv, whnf)
@@ -120,11 +119,11 @@ bgroupIOPA name mkma = bgroup name
     perRunEnv (fmap WHNF mkma) $ \(WHNF ma) -> stToIO (PSort.sortMutable ma)
   ]
   where
-    mkmv :: IO (WHNF (MPV.IOVector Int))
+    mkmv :: IO (WHNF (VPM.IOVector Int))
     mkmv = do
       ma@(MutablePrimArray ma#) <- mkma
       sz <- getSizeofMutablePrimArray ma
-      pure (WHNF (MPV.MVector 0 sz (MutableByteArray ma#)))
+      pure (WHNF (VPM.MVector 0 sz (MutableByteArray ma#)))
 
 bgroupVUN :: Int -> Benchmark
 bgroupVUN n = bgroup (show n) $
