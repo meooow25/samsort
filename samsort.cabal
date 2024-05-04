@@ -15,6 +15,7 @@ build-type:         Simple
 
 extra-doc-files:
     README.md
+    HOWTO.md
     CHANGELOG.md
 
 tested-with:
