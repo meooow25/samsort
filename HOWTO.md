@@ -1,9 +1,9 @@
 # Using this library
 
-This is a short document to demonstrate how this library may be used.
-Familiarity with some form of arrays and mutable arrays in Haskell is expected.
-If your array type is not present here, it should still be possible to adapt
-some of the code below to your use case.
+This is a short guide to demonstrate how this library may be used. Familiarity
+with some form of arrays and mutable arrays in Haskell is expected. If your
+array type is not present here, it should still be possible to adapt some of the
+code below to your use case.
 
 ## Sorting boxed elements
 

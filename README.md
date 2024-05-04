@@ -16,8 +16,9 @@ This is a lightweight library offering two high performance sort functions:
 There are no dependencies outside of `base`. This means that this library is
 not tied to array abstractions from any particular library. This also means
 that you may need to write a few lines of code to get a `MutableArray#` or
-`MutableByteArray#` from your data, which can then be sorted. See `HOWTO.md` for
-a demonstration.
+`MutableByteArray#` from your data, which can then be sorted. See
+[`HOWTO.md`](https://github.com/meooow25/samsort/blob/master/HOWTO.md)
+for a guide.
 
 If you need to use this library in an environment where you cannot depend on
 other packages, you may simply copy the lone source file
