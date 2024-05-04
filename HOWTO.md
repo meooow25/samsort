@@ -50,7 +50,7 @@ import qualified Data.SamSort as Sam
 
 -- | Sort a mutable vector in place.
 sortMV :: (PrimMonad m, Ord a) => MVector (PrimState m) a -> m ()
-sortMV mv = sortMVBy compare
+sortMV = sortMVBy compare
 
 -- | Sort a mutable vector in place using a comparison function.
 sortMVBy :: PrimMonad m => (a -> a -> Ordering) -> MVector (PrimState m) a -> m ()
@@ -94,7 +94,7 @@ We can test it out in GHCI.
 ### Example 3: List
 
 Let us now try to sort a list, like [`Data.List.sort`](https://hackage.haskell.org/package/base-4.19.0.0/docs/Data-List.html#v:sort)
-does. Putting the elements in a `MutableArray#` is a little more involved now.
+does. We will need to move the elements from the list into a `MutableArray#`.
 
 I recommend using the [`primitive`](https://hackage.haskell.org/package/primitive-0.9.0.0/docs/Data-Primitive-Array.html)
 library for this task. `primitive` provides boxed wrappers over GHC primitive
@@ -136,17 +136,17 @@ In GHCI,
 
 > [!TIP]
 >
-> Avoid `Data.List`'s `sort` and `sortBy` any time the elements need to be fully
-> sorted and performance is a concern. Sorting lists in inherently inefficient.
-> Put the elements in a mutable array and use this (or some other) sorting
-> library instead.
+> Avoid `Data.List`'s `sort` and `sortBy` when a large number elements need
+> to be fully sorted and performance is a concern. Sorting lists in inherently
+> inefficient. Put the elements in a mutable array and use this (or some other)
+> sorting library instead.
 
-## Sorting `Ints`
+## Sorting `Int`s
 
 Converting to a `MutableArray#` and sorting, as explained in the above section,
 should cover the majority of use cases. However, sometimes that is not the best
 option. For instance, we may be storing our elements in an unboxed array for
-efficiency. Having to pulling them out and box them for sorting does not sound
+efficiency. Having to pull them out and box them for sorting does not sound
 good.
 
 To sort unboxed `Int`s, a second function is provided by this library:
@@ -213,7 +213,7 @@ We know that we can index such a vector efficiently. So we will sort such a
 vector by index. First we will create an `Int` vector, the elements of which
 will be indices into the `a` vector. Then we will sort this `Int` vector using
 a comparison function that indexes the `a` vector and compares `a`s. Finally, we
-will construct an `a` vector with `a`s in the order of the sorted indices.
+will construct a vector with `a`s in the order of the sorted indices.
 
 This technique is general enough that we can sort any flavor of `Vector`
 (boxed, `Unboxed`, `Prim`, `Storable`), so let us use `Vector.Generic` to
