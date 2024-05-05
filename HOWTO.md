@@ -63,7 +63,7 @@ sortMVBy cmp (MVector off len (MutableArray ma)) =
 
 Now consider sorting an (immutable) `Vector`, again from the `vector` library.
 Since we cannot mutate it, we will return a sorted copy. The most convenient way
-here to thaw to a `MVector` and sort it as we did above.
+here is to thaw to a `MVector` and sort it as we did above.
 
 ```hs
 import Data.Vector (Vector)
@@ -204,13 +204,13 @@ types in unboxed arrays?
 
 ### Example 1: [Unboxed `Vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Unboxed.html#t:Vector)
 
-Consider that we need to a sort an unboxed vector of some type `a`. The `vector`
-library is designed in a way that the underlying representation of a unboxed
+Consider that we need to sort an unboxed vector of some type `a`. The `vector`
+library is designed in a way that the underlying representation of an unboxed
 vector can be anything depending on the type `a`. We cannot assume anything
 about it.
 
 We know that we can index such a vector efficiently. We also know that we can
-construct such vectors from a `Int -> a` using the handy `generate` function. We
+construct such vectors from an `Int -> a` using the handy `generate` function. We
 will use these facts to sort such a vector.
 
 First we will create an `Int` vector, the elements of which will be indices into
@@ -284,7 +284,7 @@ Our options as seen above are
   index array.
 
 Neither are ideal. The most efficient way to sort small elements is to sort the
-array of such elements directly. Unfortunately, this library cannot to used to
+array of such elements directly. Unfortunately, this library cannot be used to
 do this because there are only two functions, one to sort boxed values, and one
 to sort `Int`s. If we must use this library, sorting by index is the method of
 choice. It is not ideal, but it will not be slow either.
