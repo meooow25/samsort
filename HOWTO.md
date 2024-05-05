@@ -137,7 +137,7 @@ In GHCI,
 > [!TIP]
 >
 > Avoid `Data.List`'s `sort` and `sortBy` when a large number of elements need
-> to be fully sorted and performance is a concern. Sorting lists in inherently
+> to be fully sorted and performance is a concern. Sorting lists is quite
 > inefficient. Put the elements in a mutable array and use this (or some other)
 > sorting library instead.
 
@@ -267,7 +267,7 @@ We can see that the sort works as expected in GHCI.
 ```
 
 And we can see [in benchmarks](https://github.com/meooow25/samsort/tree/master/compare#4-sort-105-int-int-ints-unboxed)
-that sorting by index is indeed more efficient that sorting directly, for
+that sorting by index is indeed more efficient than sorting directly, for
 elements of type `(Int, Int, Int)` and sort implementations which support both.
 
 ## Sorting unboxed arrays of small elements
@@ -286,15 +286,13 @@ Our options as seen above are
 Neither are ideal. The most efficient way to sort small elements is to sort the
 array of such elements directly. Unfortunately, this library cannot to used to
 do this because there are only two functions, one to sort boxed values, and one
-to sort `Int`s.
+to sort `Int`s. If we must use this library, sorting by index is the method of
+choice. It is not ideal, but it will not be slow either.
 
-If we must use this library to sort such small elements, sorting by index is the
-method of choice. It is not ideal, but it will not be slow either.
-
-You may also consider the library [`primitive-sort`](https://hackage.haskell.org/package/primitive-sort).
-It can sort such small elements efficiently, though it has some drawbacks (not
-adaptive, cannot sort a slice, cannot sort using a comparison function, more
-dependencies).
+The [`primitive-sort`](https://hackage.haskell.org/package/primitive-sort)
+library may also be a good choice for this task. It can sort such small elements
+efficiently, though it has some drawbacks (not adaptive, cannot sort a slice,
+cannot sort using a comparison function, more dependencies).
 
 [`vector-algorithms`](https://hackage.haskell.org/package/vector-algorithms)
 is also able to sort small elements, however it turns out to be
