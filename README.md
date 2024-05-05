@@ -1,5 +1,6 @@
 # samsort
 
+[![Hackage](https://img.shields.io/hackage/v/samsort?logo=haskell&color=blue)](https://hackage.haskell.org/package/samsort)
 [![Haskell-CI](https://github.com/meooow25/samsort/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/meooow25/samsort/actions/workflows/haskell-ci.yml)
 
 A stable adapative mergesort implementation
