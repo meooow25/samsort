@@ -31,16 +31,16 @@ So how does one use this?
 * The return type is an `ST` action. If you are not familiar with `ST`, please
   see the documentation for [`Control.Monad.ST`](https://hackage.haskell.org/package/base-4.19.0.0/docs/Control-Monad-ST.html).
 
-Clearly, to use `sortArrayBy`, an important step is to put the elements to be
-sorted into a `MutableArray#`. The most convenient way to do this depends on how
-the elements are stored prior to sorting.
+To use `sortArrayBy`, an important step is to put the elements to be sorted
+into a `MutableArray#`. The best way to do this depends on how the elements are
+stored prior to sorting, as we will see in the examples below.
 
 ### Example 1: [`MVector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Mutable.html#t:MVector)
 
 Consider that we need to sort a mutable vector `MVector` from the `vector`
 library. This is quite easy, and in fact we do not need to put elements anywhere
 because the underlying representation of an `MVector` is a `MutableArray#`! We
-only need to get it out of the `MVector`.
+only need to access it.
 
 ```hs
 import Control.Monad.Primitive (PrimMonad(..), stToPrim)  -- from the package "primitive"
@@ -63,7 +63,7 @@ sortMVBy cmp (MVector off len (MutableArray ma)) =
 
 Now consider sorting an (immutable) `Vector`, again from the `vector` library.
 Since we cannot mutate it, we will return a sorted copy. The most convenient way
-here is to thaw to a `MVector` and sort it as we did above.
+here is to thaw the `Vector` to get an `MVector`, then sort it as we did above.
 
 ```hs
 import Data.Vector (Vector)
@@ -94,17 +94,17 @@ We can test it out in GHCI.
 ### Example 3: List
 
 Let us now try to sort a list, like [`Data.List.sort`](https://hackage.haskell.org/package/base-4.19.0.0/docs/Data-List.html#v:sort)
-does. We will need to move the elements from the list into a `MutableArray#`.
+does. Here we will need to move the elements from the list into a
+`MutableArray#`.
 
 I recommend using the [`primitive`](https://hackage.haskell.org/package/primitive-0.9.0.0/docs/Data-Primitive-Array.html)
 library for this task. `primitive` provides boxed wrappers over GHC primitive
-types and functions to work with them. While it is possible to do this without
+types, and functions to work with them. While it is possible to do this without
 any library, it is easiest to use what is already available. If you are unable
 to use `primitive`, you can take a peek at the relevant definitions there and
 use them directly.
 
 ```hs
-import Control.Monad.Primitive (stToPrim)
 import qualified Data.Foldable as F
 import Data.Primitive.Array (MutableArray(..))
 import qualified Data.Primitive.Array as A
@@ -121,15 +121,16 @@ sortLBy cmp xs = F.toList $ A.runArray $ do
   let a = A.arrayFromList xs
       n = A.sizeofArray a
   ma@(MutableArray ma') <- A.thawArray a 0 n
-  stToPrim $ Sam.sortArrayBy cmp ma' 0 n
+  Sam.sortArrayBy cmp ma' 0 n
   pure ma
 ```
 
 In GHCI,
+
 ```hs
 >>> sortL ["Fall","In","The","Dark"]
 ["Dark","Fall","In","The"]
->>> import Data.Ord (Down, comparing)
+>>> import Data.Ord (Down(..), comparing)
 >>> sortLBy (comparing Down) [3.4,8.5,9.1,7.9,3.1,6.2]
 [9.1,8.5,7.9,6.2,3.4,3.1]
 ```
@@ -138,18 +139,17 @@ In GHCI,
 >
 > Avoid `Data.List`'s `sort` and `sortBy` when a large number of elements need
 > to be fully sorted and performance is a concern. Sorting lists is quite
-> inefficient. Put the elements in a mutable array and use this (or some other)
-> sorting library instead.
+> inefficient compared to sorting a mutable array in place.
 
 ## Sorting `Int`s
 
-Converting to a `MutableArray#` and sorting, as explained in the above section,
-should cover the majority of use cases. However, sometimes it is not the
-best option. For instance, we may be storing `Int`s in an unboxed array for
-efficiency. Having to pull them out and box them for sorting does not sound
-good.
+Converting to a `MutableArray#` and sorting, as shown in the above section,
+should cover the majority of use cases. If we are dealing with unboxed data
+however, we can do better. We may be storing `Int`s in an unboxed array for
+efficiency, but pulling them out and boxing them for sorting would ruin that
+efficiency.
 
-The second function provided by this library is
+This is where we can use the second function from this library.
 
 ```hs
 sortIntArrayBy
@@ -204,26 +204,24 @@ types in unboxed arrays?
 
 ### Example 1: [Unboxed `Vector`](https://hackage.haskell.org/package/vector-0.13.1.0/docs/Data-Vector-Unboxed.html#t:Vector)
 
-Consider that we need to sort an unboxed vector of some type `a`. The `vector`
-library is designed in a way that the underlying representation of an unboxed
-vector can be anything depending on the type `a`. We cannot assume anything
-about it.
+Consider that we need to sort an unboxed vector of some unknown type `a`. We
+cannot assume anything about the representation of the unboxed `Vector a`,
+because it can be anything at all depending on the type `a`. Can we sort such
+a vector efficiently?
 
-We know that we can index such a vector efficiently. We also know that we can
-construct such vectors from an `Int -> a` using the handy `generate` function. We
-will use these facts to sort such a vector.
+We know that we can index any vector. We also know that we can construct
+vectors, using the `generate` function for instance. That is all we will need.
 
-First we will create an `Int` vector, the elements of which will be indices into
-the `a` vector. Then we will sort this `Int` vector using a comparison function
-that indexes the `a` vector and compares `a`s. Finally, we will construct a
-vector with `a`s in the order of the sorted indices.
+First we will create an `Int` vector, the elements of which are indices into the
+`a` vector. Then we will sort this `Int` vector using a comparison function that
+indexes the `a` vector and compares `a`s. As the final result, we will construct
+a vector with `a`s in the order of the sorted indices.
 
 This technique is general enough that we can sort any flavor of `Vector`
-(boxed, `Unboxed`, `Prim`, `Storable`), so let us use `Vector.Generic` to
+(boxed, `Unboxed`, `Prim`, `Storable`), so we can use `Vector.Generic` to
 define the functions.
 
 ```hs
-import Control.Monad.Primitive (stToPrim)
 import Data.Primitive.ByteArray (MutableByteArray(..))
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Primitive as VP
@@ -245,7 +243,7 @@ sortByIdxVGBy cmp v = VG.generate n (VG.unsafeIndex v . VP.unsafeIndex ixa)
       ixma <- VPM.generate n id
       case ixma of
         VPM.MVector off len (MutableByteArray ma') ->
-          stToPrim $ Sam.sortIntArrayBy cmp' ma' off len
+          Sam.sortIntArrayBy cmp' ma' off len
       pure ixma
 ```
 
@@ -254,9 +252,11 @@ be sorted, using any method, and not just with this library!
 
 Sorting by index is more beneficial the larger the elements are in memory,
 since moving around index `Int`s is cheaper than moving around the elements
-themselves.
+themselves. This is demonstrated [in these benchmarks](https://github.com/meooow25/samsort/tree/master/compare#4-sort-105-int-int-ints-unboxed)
+on elements of type `(Int, Int, Int)`, for sort functions which support both
+direct sorting and sorting by index.
 
-We can see that the sort works as expected in GHCI.
+We can confirm that our sort works as expected in GHCI.
 
 ```hs
 >>> import Data.Ord (comparing)
@@ -266,34 +266,28 @@ We can see that the sort works as expected in GHCI.
 [(1,2),(6,4),(5,4)]
 ```
 
-And we can see [in benchmarks](https://github.com/meooow25/samsort/tree/master/compare#4-sort-105-int-int-ints-unboxed)
-that sorting by index is indeed more efficient than sorting directly, for
-elements of type `(Int, Int, Int)` and sort implementations which support both.
-
 ## Sorting unboxed arrays of small elements
 
 So sorting by index is more beneficial the larger the element is, but what
 about small elements? Perhaps we need to sort an unboxed array of `Word8`s, or
 `Float`s?
 
-Our options as seen above are
+Our options as seen above are:
 
-* Convert to a boxed array and sort. Lots of avoidable allocations and slow
-  comparisons.
-* Sort by index. Better, but has avoidable allocations in the form of the
-  index array.
+* Convert to a boxed array and sort
+* Sort by index
 
-Neither are ideal. The most efficient way to sort small elements is to sort the
-array of such elements directly. Unfortunately, this library cannot be used to
-do this because there are only two functions, one to sort boxed values, and one
-to sort `Int`s. If we must use this library, sorting by index is the method of
-choice. It is not ideal, but it will not be slow either.
+While neither option is ideal, the second option is better. The most efficient
+way to sort small elements is to sort the array of such elements directly.
+Unfortunately, this library cannot be used to do this because there are only two
+functions, one to sort boxed values, and one to sort `Int`s. However, sorting by
+index will be close to as fast as sorting directly.
 
 The [`primitive-sort`](https://hackage.haskell.org/package/primitive-sort)
-library may also be a good choice for this task. It can sort such small elements
-efficiently, though it has some drawbacks (not adaptive, cannot sort a slice,
-cannot sort using a comparison function, more dependencies).
+library may also be a good fit for this task. It can sort such small elements
+directly and efficiently, though it has some drawbacks (not adaptive, cannot
+sort a slice, cannot sort using a comparison function, more dependencies).
 
 [`vector-algorithms`](https://hackage.haskell.org/package/vector-algorithms)
-is also able to sort small elements, however it turns out to be
+is also able to sort small elements directly, however it turns out to be
 [slower in practice](https://github.com/meooow25/samsort/tree/master/compare#5-sort-105-word8s-unboxed).
